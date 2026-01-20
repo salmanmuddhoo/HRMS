@@ -1,0 +1,200 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  EMPLOYER
+  EMPLOYEE
+}
+
+enum EmploymentStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum LeaveType {
+  LOCAL
+  SICK
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PayrollStatus {
+  DRAFT
+  APPROVED
+  LOCKED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      Role     @default(EMPLOYEE)
+  employee  Employee?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Employee {
+  id               String           @id @default(uuid())
+  employeeId       String           @unique
+  userId           String           @unique
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName        String
+  lastName         String
+  email            String           @unique
+  phone            String?
+  department       String
+  jobTitle         String
+  joiningDate      DateTime
+  status           EmploymentStatus @default(ACTIVE)
+  baseSalary       Float
+  travellingAllowance Float         @default(0)
+  otherAllowances  Float            @default(0)
+  localLeaveBalance Int             @default(0)
+  sickLeaveBalance Int              @default(0)
+  leaves           Leave[]
+  attendances      Attendance[]
+  payrolls         Payroll[]
+  payslips         Payslip[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@map("employees")
+}
+
+model Leave {
+  id           String      @id @default(uuid())
+  employeeId   String
+  employee     Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType    LeaveType
+  startDate    DateTime
+  endDate      DateTime
+  totalDays    Int
+  reason       String
+  attachment   String?
+  status       LeaveStatus @default(PENDING)
+  isUrgent     Boolean     @default(false)
+  approvedBy   String?
+  approvedAt   DateTime?
+  rejectedBy   String?
+  rejectedAt   DateTime?
+  rejectionReason String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@map("leaves")
+}
+
+model Attendance {
+  id          String   @id @default(uuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  date        DateTime
+  isPresent   Boolean  @default(true)
+  isLeave     Boolean  @default(false)
+  leaveType   LeaveType?
+  isAbsence   Boolean  @default(false)
+  remarks     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([employeeId, date])
+  @@map("attendances")
+}
+
+model Payroll {
+  id                    String        @id @default(uuid())
+  employeeId            String
+  employee              Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  month                 Int
+  year                  Int
+  workingDays           Int
+  presentDays           Int
+  leaveDays             Int
+  absenceDays           Int
+  baseSalary            Float
+  travellingAllowance   Float
+  otherAllowances       Float
+  travellingDeduction   Float         @default(0)
+  totalDeductions       Float         @default(0)
+  grossSalary           Float
+  netSalary             Float
+  status                PayrollStatus @default(DRAFT)
+  approvedBy            String?
+  approvedAt            DateTime?
+  remarks               String?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  payslip               Payslip?
+
+  @@unique([employeeId, month, year])
+  @@map("payrolls")
+}
+
+model Payslip {
+  id          String   @id @default(uuid())
+  payrollId   String   @unique
+  payroll     Payroll  @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  pdfPath     String?
+  generatedAt DateTime @default(now())
+  downloadedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("payslips")
+}
+
+model PublicHoliday {
+  id          String   @id @default(uuid())
+  name        String
+  date        DateTime
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([date])
+  @@map("public_holidays")
+}
+
+model SystemConfig {
+  id                    String   @id @default(uuid())
+  key                   String   @unique
+  value                 String
+  description           String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("system_config")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String
+  action      String
+  entity      String
+  entityId    String
+  changes     String?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@map("audit_logs")
+}

@@ -42,8 +42,10 @@ tmp/
 temp/
 *.tmp
 
-# Git bundles
+# Git bundles and patches
 *.bundle
+*.patch
+*.tar.gz
 
 # Build files
 *.tsbuildinfo

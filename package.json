@@ -1,0 +1,26 @@
+{
+  "name": "elpms",
+  "version": "1.0.0",
+  "description": "Employee Leave & Payroll Management System",
+  "main": "index.js",
+  "scripts": {
+    "backend": "cd backend && npm run dev",
+    "frontend": "cd frontend && npm start",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "build": "npm run build:backend && npm run build:frontend"
+  },
+  "keywords": [
+    "hrms",
+    "payroll",
+    "leave-management",
+    "attendance"
+  ],
+  "author": "ELPMS Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

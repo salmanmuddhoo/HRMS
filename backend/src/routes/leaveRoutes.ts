@@ -7,6 +7,7 @@ import {
   approveLeave,
   rejectLeave,
   addUrgentLeave,
+  updateLeave,
   cancelLeave,
 } from '../controllers/leaveController';
 import { authenticate, authorize } from '../middleware/auth';
@@ -42,6 +43,16 @@ router.post(
     body('reason').notEmpty().withMessage('Reason is required'),
   ]),
   addUrgentLeave
+);
+
+router.put(
+  '/:id',
+  validate([
+    body('leaveType').isIn(['LOCAL', 'SICK']).withMessage('Invalid leave type'),
+    body('startDate').isISO8601().withMessage('Valid start date is required'),
+    body('endDate').isISO8601().withMessage('Valid end date is required'),
+  ]),
+  updateLeave
 );
 
 router.put('/:id/approve', authorize('ADMIN', 'EMPLOYER'), approveLeave);

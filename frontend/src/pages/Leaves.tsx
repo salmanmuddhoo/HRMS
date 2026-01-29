@@ -26,6 +26,7 @@ const Leaves: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [editingLeave, setEditingLeave] = useState<Leave | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -140,7 +141,7 @@ const Leaves: React.FC = () => {
     setSubmitting(true);
 
     try {
-      const response = await api.applyLeave({
+      const leaveData = {
         leaveType: formData.leaveType,
         startDate: formData.startDate,
         endDate: formData.isHalfDay ? formData.startDate : formData.endDate,
@@ -148,11 +149,19 @@ const Leaves: React.FC = () => {
         totalDays: calculateDays(),
         isHalfDay: formData.isHalfDay,
         halfDayPeriod: formData.isHalfDay ? formData.halfDayPeriod : undefined,
-      });
+      };
+
+      let response;
+      if (editingLeave) {
+        response = await api.updateLeave(editingLeave.id, leaveData);
+      } else {
+        response = await api.applyLeave(leaveData);
+      }
 
       if ((response as any).success) {
-        setSuccess('Leave application submitted successfully!');
+        setSuccess(editingLeave ? 'Leave updated successfully!' : 'Leave application submitted successfully!');
         setShowModal(false);
+        setEditingLeave(null);
         setFormData({
           leaveType: 'LOCAL',
           startDate: getTomorrow(),
@@ -163,14 +172,50 @@ const Leaves: React.FC = () => {
         });
         fetchLeaves();
         // Refresh user data to update leave balance
-        window.location.reload();
+        if (!editingLeave) {
+          window.location.reload();
+        }
       } else {
-        setError((response as any).error || 'Failed to submit leave application');
+        setError((response as any).error || `Failed to ${editingLeave ? 'update' : 'submit'} leave application`);
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to submit leave application');
+      setError(err.response?.data?.error || `Failed to ${editingLeave ? 'update' : 'submit'} leave application`);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleEditLeave = (leave: Leave) => {
+    setEditingLeave(leave);
+    setFormData({
+      leaveType: leave.leaveType,
+      startDate: leave.startDate.split('T')[0],
+      endDate: leave.endDate.split('T')[0],
+      reason: leave.reason,
+      isHalfDay: false, // Will need to get from backend if stored
+      halfDayPeriod: 'MORNING',
+    });
+    setShowModal(true);
+  };
+
+  const handleCancelLeave = async (id: string, isApproved: boolean) => {
+    const confirmMessage = isApproved
+      ? 'Are you sure you want to cancel this approved leave? The leave balance will be restored.'
+      : 'Are you sure you want to cancel this leave request?';
+
+    if (!window.confirm(confirmMessage)) return;
+
+    try {
+      const response = await api.cancelLeave(id);
+      if ((response as any).success) {
+        setSuccess('Leave cancelled successfully!');
+        fetchLeaves();
+        if (isApproved) {
+          window.location.reload(); // Refresh to update balance
+        }
+      }
+    } catch (error: any) {
+      setError(error.response?.data?.message || 'Failed to cancel leave');
     }
   };
 
@@ -407,6 +452,7 @@ const Leaves: React.FC = () => {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Days</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Applied On</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -432,6 +478,37 @@ const Leaves: React.FC = () => {
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                         {new Date(leave.createdAt).toLocaleDateString()}
                       </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm">
+                        <div className="flex gap-2">
+                          {!isEmployer && leave.status === 'PENDING' && (
+                            <>
+                              <button
+                                onClick={() => handleEditLeave(leave)}
+                                className="text-primary-600 hover:text-primary-900 font-medium"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleCancelLeave(leave.id, false)}
+                                className="text-red-600 hover:text-red-900 font-medium"
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          )}
+                          {isEmployer && leave.status === 'APPROVED' && (
+                            <button
+                              onClick={() => handleCancelLeave(leave.id, true)}
+                              className="text-red-600 hover:text-red-900 font-medium"
+                            >
+                              Cancel
+                            </button>
+                          )}
+                          {!isEmployer && !isEmployer && leave.status === 'APPROVED' && (
+                            <span className="text-gray-400 text-xs">No actions</span>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -446,10 +523,11 @@ const Leaves: React.FC = () => {
             <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
               <div className="p-6">
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold text-gray-900">Apply for Leave</h2>
+                  <h2 className="text-xl font-bold text-gray-900">{editingLeave ? 'Edit Leave Request' : 'Apply for Leave'}</h2>
                   <button
                     onClick={() => {
                       setShowModal(false);
+                      setEditingLeave(null);
                       setError('');
                     }}
                     className="text-gray-400 hover:text-gray-600"

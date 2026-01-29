@@ -6,14 +6,35 @@ import { DashboardStats, ApiResponse } from '../types';
 import Layout from '../components/Layout';
 import Calendar from '../components/Calendar';
 
+interface Holiday {
+  id: string;
+  name: string;
+  date: string;
+  description?: string;
+}
+
+interface Leave {
+  id: string;
+  startDate: string;
+  endDate: string;
+  leaveType: string;
+  totalDays: number;
+  status: string;
+}
+
 const Dashboard: React.FC = () => {
   const { user, isEmployer } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [upcomingHolidays, setUpcomingHolidays] = useState<Holiday[]>([]);
+  const [upcomingLeaves, setUpcomingLeaves] = useState<Leave[]>([]);
 
   useEffect(() => {
     fetchDashboardStats();
-  }, []);
+    if (!isEmployer && user?.employee) {
+      fetchUpcomingData();
+    }
+  }, [isEmployer, user]);
 
   const fetchDashboardStats = async () => {
     try {
@@ -25,6 +46,37 @@ const Dashboard: React.FC = () => {
       console.error('Failed to fetch dashboard stats:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchUpcomingData = async () => {
+    try {
+      // Fetch upcoming holidays
+      const year = new Date().getFullYear();
+      const holidaysResponse = await api.getHolidays({ year });
+      if ((holidaysResponse as any).success) {
+        const allHolidays = (holidaysResponse as any).data || [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const upcoming = allHolidays
+          .filter((h: Holiday) => new Date(h.date) >= today)
+          .slice(0, 3);
+        setUpcomingHolidays(upcoming);
+      }
+
+      // Fetch upcoming approved leaves
+      const leavesResponse = await api.getLeaves({ status: 'APPROVED' });
+      if ((leavesResponse as any).success) {
+        const allLeaves = (leavesResponse as any).data || [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const upcoming = allLeaves
+          .filter((l: Leave) => new Date(l.startDate) >= today)
+          .slice(0, 3);
+        setUpcomingLeaves(upcoming);
+      }
+    } catch (error) {
+      console.error('Failed to fetch upcoming data:', error);
     }
   };
 
@@ -204,27 +256,62 @@ const Dashboard: React.FC = () => {
                     </p>
                   </div>
                   <Link to="/leaves" className="mt-4 inline-block text-sm text-primary-600 hover:text-primary-900">
-                    View leave history →
+                    Apply for leave →
                   </Link>
                 </div>
               </div>
 
               <div className="bg-white overflow-hidden shadow rounded-lg">
                 <div className="p-4 sm:p-5">
-                  <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">My Leaves</h3>
-                  <p className="text-sm text-gray-600 mb-4">Request and manage your leaves</p>
-                  <Link to="/leaves" className="text-sm text-primary-600 hover:text-primary-900">
+                  <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">Upcoming Holidays</h3>
+                  <div className="mt-4 space-y-2">
+                    {upcomingHolidays.length > 0 ? (
+                      upcomingHolidays.map((holiday) => (
+                        <div key={holiday.id} className="text-sm">
+                          <p className="font-semibold text-gray-900">{holiday.name}</p>
+                          <p className="text-gray-500 text-xs">
+                            {new Date(holiday.date).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })}
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-500">No upcoming holidays</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white overflow-hidden shadow rounded-lg">
+                <div className="p-4 sm:p-5">
+                  <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">Upcoming Leaves</h3>
+                  <div className="mt-4 space-y-2">
+                    {upcomingLeaves.length > 0 ? (
+                      upcomingLeaves.map((leave) => (
+                        <div key={leave.id} className="text-sm">
+                          <p className="font-semibold text-gray-900">
+                            {leave.leaveType === 'LOCAL' ? 'Annual' : 'Sick'} Leave ({leave.totalDays} day{leave.totalDays !== 1 ? 's' : ''})
+                          </p>
+                          <p className="text-gray-500 text-xs">
+                            {new Date(leave.startDate).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                            })} - {new Date(leave.endDate).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                            })}
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-500">No upcoming leaves</p>
+                    )}
+                  </div>
+                  <Link to="/leaves" className="mt-4 inline-block text-sm text-primary-600 hover:text-primary-900">
                     View all leaves →
-                  </Link>
-                </div>
-              </div>
-
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-4 sm:p-5">
-                  <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">Payslips</h3>
-                  <p className="text-sm text-gray-600 mb-4">Access your salary information</p>
-                  <Link to="/payslips" className="text-sm text-primary-600 hover:text-primary-900">
-                    View payslips →
                   </Link>
                 </div>
               </div>

@@ -64,6 +64,24 @@ export const generatePayslipPDF = async (
       const secondaryColor = '#34495e';
       const accentColor = '#3498db';
 
+      // Check if logo exists and add it
+      const logoPath = path.join(process.cwd(), 'public', 'logo.png');
+      if (fs.existsSync(logoPath)) {
+        try {
+          const imageWidth = 80;
+          const imageHeight = 80;
+          const xPosition = (doc.page.width - imageWidth) / 2;
+          doc.image(logoPath, xPosition, doc.y, {
+            width: imageWidth,
+            height: imageHeight,
+            align: 'center',
+          });
+          doc.moveDown(5);
+        } catch (error) {
+          console.log('Could not add logo to PDF:', error);
+        }
+      }
+
       // Header
       doc
         .fontSize(24)

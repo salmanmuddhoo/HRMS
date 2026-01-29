@@ -77,24 +77,24 @@ const Employees: React.FC = () => {
   return (
     <Layout>
       <div className="px-4 py-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Employee Management</h1>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Employee Management</h1>
           <Link
             to="/employees/add"
-            className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+            className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 text-sm sm:text-base w-full sm:w-auto text-center"
           >
             Add Employee
           </Link>
         </div>
 
-        <div className="mb-4 flex gap-4">
-          <form onSubmit={handleSearch} className="flex gap-2">
+        <div className="mb-4 flex flex-col sm:flex-row gap-4">
+          <form onSubmit={handleSearch} className="flex gap-2 flex-1">
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name, ID, or email..."
-              className="rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2 w-64"
+              className="rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2 flex-1 sm:w-64"
             />
             <button
               type="submit"
@@ -121,7 +121,8 @@ const Employees: React.FC = () => {
           </div>
         ) : (
           <div className="bg-white shadow rounded-lg overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee ID</th>
@@ -180,6 +181,7 @@ const Employees: React.FC = () => {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>

@@ -14,6 +14,7 @@ import Payslips from './pages/Payslips';
 import Reports from './pages/Reports';
 import Holidays from './pages/Holidays';
 import Settings from './pages/Settings';
+import Profile from './pages/Profile';
 
 const App: React.FC = () => {
   return (
@@ -114,6 +115,14 @@ const App: React.FC = () => {
             element={
               <PrivateRoute>
                 <Settings />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <PrivateRoute>
+                <Profile />
               </PrivateRoute>
             }
           />

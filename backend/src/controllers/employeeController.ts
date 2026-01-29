@@ -408,9 +408,11 @@ export const resetEmployeePassword = async (req: AuthRequest, res: Response) => 
       data: {
         userId: req.user!.userId,
         action: 'PASSWORD_RESET',
-        entityType: 'USER',
+        entity: 'USER',
         entityId: employee.user.id,
-        details: `Password reset for employee ${employee.firstName} ${employee.lastName} (${employee.employeeId})`,
+        changes: JSON.stringify({
+          message: `Password reset for employee ${employee.firstName} ${employee.lastName} (${employee.employeeId})`
+        }),
       },
     });
 

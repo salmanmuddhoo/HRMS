@@ -650,6 +650,130 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const updateLeave = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { leaveType, startDate, endDate, reason, isHalfDay, halfDayPeriod } = req.body;
+
+    const leave = await prisma.leave.findUnique({
+      where: { id },
+      include: { employee: true },
+    });
+
+    if (!leave) {
+      return sendError(res, 'Leave not found', 404);
+    }
+
+    // Only allow editing pending leaves
+    if (leave.status !== 'PENDING') {
+      return sendError(res, 'Only pending leaves can be edited', 400);
+    }
+
+    // Check if employee owns this leave
+    const employee = await prisma.employee.findUnique({
+      where: { userId: req.user!.userId },
+    });
+
+    if (!employee || leave.employeeId !== employee.id) {
+      return sendError(res, 'Unauthorized to edit this leave', 403);
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    start.setHours(0, 0, 0, 0);
+
+    // Validate date based on leave type
+    if (leaveType === 'LOCAL') {
+      if (start.getTime() <= today.getTime()) {
+        return sendError(res, 'Local leave must be applied at least 1 day in advance', 400);
+      }
+    }
+
+    // Calculate total days
+    let totalDays: number;
+    if (isHalfDay) {
+      totalDays = 0.5;
+    } else {
+      totalDays = calculateDaysBetween(start, end);
+    }
+
+    // Check leave balance
+    if (leaveType === 'LOCAL' && employee.localLeaveBalance < totalDays) {
+      return sendError(
+        res,
+        `Insufficient local leave balance. Available: ${employee.localLeaveBalance} days`,
+        400
+      );
+    }
+
+    if (leaveType === 'SICK' && employee.sickLeaveBalance < totalDays) {
+      return sendError(
+        res,
+        `Insufficient sick leave balance. Available: ${employee.sickLeaveBalance} days`,
+        400
+      );
+    }
+
+    // Check for overlapping leaves (excluding current leave)
+    const overlappingLeave = await prisma.leave.findFirst({
+      where: {
+        id: { not: id },
+        employeeId: employee.id,
+        status: { in: ['PENDING', 'APPROVED'] },
+        OR: [
+          {
+            startDate: { lte: end },
+            endDate: { gte: start },
+          },
+        ],
+      },
+    });
+
+    if (overlappingLeave) {
+      const isSameDay = overlappingLeave.startDate.getTime() === start.getTime() &&
+                        overlappingLeave.endDate.getTime() === end.getTime();
+      const bothHalfDay = overlappingLeave.isHalfDay && isHalfDay;
+      const differentPeriods = overlappingLeave.halfDayPeriod !== halfDayPeriod;
+
+      if (!(isSameDay && bothHalfDay && differentPeriods)) {
+        return sendError(res, 'You have an overlapping leave request', 400);
+      }
+    }
+
+    // Update leave
+    const updatedLeave = await prisma.leave.update({
+      where: { id },
+      data: {
+        leaveType,
+        startDate: start,
+        endDate: isHalfDay ? start : end,
+        totalDays,
+        reason,
+        isHalfDay: isHalfDay || false,
+        halfDayPeriod: isHalfDay ? halfDayPeriod : null,
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            employeeId: true,
+            firstName: true,
+            lastName: true,
+            department: true,
+          },
+        },
+      },
+    });
+
+    return sendSuccess(res, updatedLeave, 'Leave updated successfully');
+  } catch (error: any) {
+    console.error('Update leave error:', error);
+    return sendError(res, 'Failed to update leave', 500);
+  }
+};
+
 export const cancelLeave = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;

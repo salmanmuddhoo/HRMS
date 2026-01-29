@@ -114,6 +114,10 @@ class ApiService {
     return this.request({ method: 'POST', url: '/leaves/apply', data });
   }
 
+  async updateLeave(id: string, data: any) {
+    return this.request({ method: 'PUT', url: `/leaves/${id}`, data });
+  }
+
   async addUrgentLeave(data: any) {
     return this.request({ method: 'POST', url: '/leaves/urgent', data });
   }

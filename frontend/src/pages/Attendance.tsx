@@ -277,7 +277,7 @@ const Attendance: React.FC = () => {
     // Colors: Annual Leave = Blue, Sick Leave = Light Red, Present = Green
     const annualLeaveColor = '#bfdbfe'; // blue-200
     const sickLeaveColor = '#fecaca'; // red-200
-    const presentColor = '#bbf7d0'; // green-200
+    const presentColor = isTodayColumn ? '#86efac' : '#bbf7d0'; // green-300 for today, green-200 otherwise
 
     let bgColor = 'bg-gray-50';
     let content: React.ReactNode = '-';
@@ -285,9 +285,9 @@ const Attendance: React.FC = () => {
     let cursor = isEmployer && !isWeekend && !holiday ? 'cursor-pointer hover:bg-gray-100' : '';
     let customStyle: React.CSSProperties = {};
 
-    // Today column highlight
+    // Today column highlight - more prominent background for current date
     if (isTodayColumn) {
-      bgColor = 'bg-primary-50';
+      bgColor = 'bg-primary-100';
     }
 
     if (isWeekend) {
@@ -491,25 +491,11 @@ const Attendance: React.FC = () => {
           </div>
           <div className="flex items-center gap-2">
             <span className="w-10 h-8 bg-blue-100 text-blue-700 flex items-center justify-center rounded font-medium text-xs">AL</span>
-            <span>Annual Leave</span>
+            <span>AL Annual Leave</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-10 h-8 bg-red-100 text-red-700 flex items-center justify-center rounded font-medium text-xs">SL</span>
-            <span>Sick Leave</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span
-              className="w-10 h-8 rounded flex items-center justify-center text-[9px] font-bold overflow-hidden relative"
-              style={{ background: 'linear-gradient(135deg, #bfdbfe 50%, #bbf7d0 50%)' }}
-            >
-              <span className="text-blue-700 absolute top-0.5 left-1">AL</span>
-              <span className="text-green-700 absolute bottom-0.5 right-1">P</span>
-            </span>
-            <span>Half Day Leave</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-10 h-8 bg-gray-300 text-gray-600 flex items-center justify-center rounded font-medium text-[10px]">Holiday</span>
-            <span>Public Holiday</span>
+            <span>SL Sick Leave</span>
           </div>
         </div>
 
@@ -537,7 +523,7 @@ const Attendance: React.FC = () => {
                           className={`px-2 py-3 text-center text-xs font-medium uppercase tracking-wider min-w-[90px] ${
                             isWeekend ? 'bg-gray-200 text-gray-500' :
                             holiday ? 'bg-gray-300 text-gray-600' :
-                            isToday ? 'bg-primary-100 text-primary-700 font-bold' : 'text-gray-500'
+                            isToday ? 'bg-primary-200 text-primary-800 font-extrabold shadow-md' : 'text-gray-500'
                           }`}
                         >
                           <div>{formatDateDisplay(date)}</div>

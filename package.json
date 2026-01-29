@@ -1,7 +1,7 @@
 {
-  "name": "elpms",
+  "name": "waqt",
   "version": "1.0.0",
-  "description": "Employee Leave & Payroll Management System",
+  "description": "Waqt - Time & Payroll Management System",
   "main": "index.js",
   "scripts": {
     "backend": "cd backend && npm run dev",
@@ -13,12 +13,13 @@
     "build": "npm run build:backend && npm run build:frontend"
   },
   "keywords": [
+    "waqt",
     "hrms",
     "payroll",
-    "leave-management",
+    "time-management",
     "attendance"
   ],
-  "author": "ELPMS Team",
+  "author": "Waqt Team",
   "license": "MIT",
   "devDependencies": {
     "concurrently": "^8.2.2"

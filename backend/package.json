@@ -1,7 +1,7 @@
 {
-  "name": "elpms-backend",
+  "name": "waqt-backend",
   "version": "1.0.0",
-  "description": "ELPMS Backend API",
+  "description": "Waqt Backend API",
   "main": "dist/server.js",
   "scripts": {
     "dev": "npx nodemon src/server.ts",

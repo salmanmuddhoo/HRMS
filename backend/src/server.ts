@@ -29,7 +29,7 @@ app.use(express.urlencoded({ extended: true }));
 app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
-    message: 'ELPMS API is running',
+    message: 'Waqt API is running',
     timestamp: new Date().toISOString(),
   });
 });
@@ -55,7 +55,7 @@ if (process.env.VERCEL !== '1') {
     console.log(`
 ╔════════════════════════════════════════════════════════════════╗
 ║                                                                ║
-║   Employee Leave & Payroll Management System (ELPMS)          ║
+║   Waqt - Time & Payroll Management System                     ║
 ║                                                                ║
 ║   Server running on port ${PORT}                                  ║
 ║   Environment: ${process.env.NODE_ENV || 'development'}                        ║

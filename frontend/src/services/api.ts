@@ -228,6 +228,19 @@ class ApiService {
     });
   }
 
+  async uploadHolidays(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request({
+      method: 'POST',
+      url: '/holidays/upload',
+      data: formData,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  }
+
   // Reports
   async getDashboardStats<T = any>(): Promise<T> {
     return this.request<T>({ method: 'GET', url: '/reports/dashboard' });

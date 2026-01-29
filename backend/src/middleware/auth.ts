@@ -12,14 +12,24 @@ export const authenticate = (
   next: NextFunction
 ): void => {
   try {
-    const authHeader = req.headers.authorization;
+    let token: string | undefined;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // Check Authorization header first
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    }
+
+    // Fallback to query parameter (for file downloads via window.open)
+    if (!token && req.query.token) {
+      token = req.query.token as string;
+    }
+
+    if (!token) {
       sendError(res, 'No token provided', 401);
       return;
     }
 
-    const token = authHeader.substring(7);
     const decoded = verifyToken(token);
 
     req.user = decoded;

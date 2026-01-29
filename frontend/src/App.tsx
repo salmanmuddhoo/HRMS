@@ -8,6 +8,11 @@ import Leaves from './pages/Leaves';
 import LeaveApply from './pages/LeaveApply';
 import Employees from './pages/Employees';
 import EmployeeForm from './pages/EmployeeForm';
+import Attendance from './pages/Attendance';
+import Payroll from './pages/Payroll';
+import Payslips from './pages/Payslips';
+import Reports from './pages/Reports';
+import Holidays from './pages/Holidays';
 import Settings from './pages/Settings';
 
 const App: React.FC = () => {
@@ -61,6 +66,46 @@ const App: React.FC = () => {
             element={
               <PrivateRoute>
                 <EmployeeForm />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/attendance"
+            element={
+              <PrivateRoute>
+                <Attendance />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/payroll"
+            element={
+              <PrivateRoute>
+                <Payroll />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/payslips"
+            element={
+              <PrivateRoute>
+                <Payslips />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/reports"
+            element={
+              <PrivateRoute>
+                <Reports />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/holidays"
+            element={
+              <PrivateRoute>
+                <Holidays />
               </PrivateRoute>
             }
           />

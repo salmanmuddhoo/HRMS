@@ -151,9 +151,19 @@ const Employees: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {employee.jobTitle}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div>Local: {employee.localLeaveBalance}</div>
-                      <div>Sick: {employee.sickLeaveBalance}</div>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <div className="flex items-center gap-1">
+                        <span className="inline-block w-8 text-center py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                          {employee.localLeaveBalance}
+                        </span>
+                        <span className="text-gray-500">Annual</span>
+                      </div>
+                      <div className="flex items-center gap-1 mt-1">
+                        <span className="inline-block w-8 text-center py-0.5 bg-red-100 text-red-700 rounded text-xs font-medium">
+                          {employee.sickLeaveBalance}
+                        </span>
+                        <span className="text-gray-500">Sick</span>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={getStatusBadge(employee.status)}>{employee.status}</span>

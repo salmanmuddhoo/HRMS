@@ -47,6 +47,13 @@ export const getAllPayrolls = async (req: AuthRequest, res: Response) => {
             jobTitle: true,
           },
         },
+        payslip: {
+          select: {
+            id: true,
+            generatedAt: true,
+            downloadedAt: true,
+          },
+        },
       },
       orderBy: [{ year: 'desc' }, { month: 'desc' }],
     });

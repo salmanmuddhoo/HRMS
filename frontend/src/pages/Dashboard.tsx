@@ -41,7 +41,7 @@ const Dashboard: React.FC = () => {
     <Layout>
       <div className="px-4 py-6 sm:px-0">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">
-          Welcome, {user?.employee ? `${user.employee.firstName} ${user.employee.lastName}` : user?.email}!
+          <span className="font-arabic">السلام عليكم</span>, {user?.employee ? `${user.employee.firstName} ${user.employee.lastName}` : user?.email}!
         </h1>
 
         {isEmployer && stats && (
@@ -114,7 +114,7 @@ const Dashboard: React.FC = () => {
                       <dl>
                         <dt className="text-sm font-medium text-gray-500 truncate">Monthly Payroll</dt>
                         <dd className="text-lg font-semibold text-gray-900">
-                          ${stats.currentMonthPayroll.totalAmount.toFixed(2)}
+                          Rs {stats.currentMonthPayroll.totalAmount.toLocaleString('en-MU', { minimumFractionDigits: 2 })}
                         </dd>
                       </dl>
                     </div>
@@ -194,17 +194,14 @@ const Dashboard: React.FC = () => {
                 <h3 className="text-lg font-medium text-gray-900 mb-2">Leave Balance</h3>
                 <div className="mt-4">
                   <p className="text-sm text-gray-600">
-                    Local Leave: <span className="font-semibold">{user.employee.localLeaveBalance} days</span>
+                    Annual Leave: <span className="font-semibold">{user.employee.localLeaveBalance} days</span>
                   </p>
                   <p className="text-sm text-gray-600">
                     Sick Leave: <span className="font-semibold">{user.employee.sickLeaveBalance} days</span>
                   </p>
                 </div>
-                <Link
-                  to="/leaves/apply"
-                  className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
-                >
-                  Apply for Leave
+                <Link to="/leaves" className="mt-4 text-primary-600 hover:text-primary-900">
+                  View leave history →
                 </Link>
               </div>
             </div>

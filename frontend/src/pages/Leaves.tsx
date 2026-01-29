@@ -30,11 +30,24 @@ const Leaves: React.FC = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // Get tomorrow's date as default
+  const getTomorrow = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  };
+
+  const getToday = () => {
+    return new Date().toISOString().split('T')[0];
+  };
+
   const [formData, setFormData] = useState({
     leaveType: 'LOCAL',
-    startDate: '',
-    endDate: '',
+    startDate: getTomorrow(),
+    endDate: getTomorrow(),
     reason: '',
+    isHalfDay: false,
+    halfDayPeriod: 'MORNING' as 'MORNING' | 'AFTERNOON',
   });
 
   useEffect(() => {
@@ -78,12 +91,35 @@ const Leaves: React.FC = () => {
   };
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    const { name, value, type } = e.target;
+
+    if (type === 'checkbox') {
+      const checked = (e.target as HTMLInputElement).checked;
+      setFormData(prev => ({
+        ...prev,
+        [name]: checked,
+        // If enabling half day, set end date same as start date
+        ...(name === 'isHalfDay' && checked ? { endDate: prev.startDate } : {})
+      }));
+    } else if (name === 'leaveType') {
+      // When changing leave type, reset dates appropriately
+      const minDate = value === 'SICK' ? getToday() : getTomorrow();
+      setFormData(prev => ({
+        ...prev,
+        [name]: value,
+        startDate: minDate,
+        endDate: minDate,
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   const calculateDays = () => {
     if (formData.startDate && formData.endDate) {
+      if (formData.isHalfDay) {
+        return 0.5;
+      }
       const start = new Date(formData.startDate);
       const end = new Date(formData.endDate);
       const diffTime = Math.abs(end.getTime() - start.getTime());
@@ -93,6 +129,11 @@ const Leaves: React.FC = () => {
     return 0;
   };
 
+  // Get minimum date based on leave type
+  const getMinDate = () => {
+    return formData.leaveType === 'SICK' ? getToday() : getTomorrow();
+  };
+
   const handleSubmitLeave = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -100,14 +141,26 @@ const Leaves: React.FC = () => {
 
     try {
       const response = await api.applyLeave({
-        ...formData,
+        leaveType: formData.leaveType,
+        startDate: formData.startDate,
+        endDate: formData.isHalfDay ? formData.startDate : formData.endDate,
+        reason: formData.reason,
         totalDays: calculateDays(),
+        isHalfDay: formData.isHalfDay,
+        halfDayPeriod: formData.isHalfDay ? formData.halfDayPeriod : undefined,
       });
 
       if ((response as any).success) {
         setSuccess('Leave application submitted successfully!');
         setShowModal(false);
-        setFormData({ leaveType: 'LOCAL', startDate: '', endDate: '', reason: '' });
+        setFormData({
+          leaveType: 'LOCAL',
+          startDate: getTomorrow(),
+          endDate: getTomorrow(),
+          reason: '',
+          isHalfDay: false,
+          halfDayPeriod: 'MORNING',
+        });
         fetchLeaves();
         // Refresh user data to update leave balance
         window.location.reload();
@@ -426,33 +479,83 @@ const Leaves: React.FC = () => {
                         <option value="LOCAL">Local Leave ({user?.employee?.localLeaveBalance || 0} days available)</option>
                         <option value="SICK">Sick Leave ({user?.employee?.sickLeaveBalance || 0} days available)</option>
                       </select>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {formData.leaveType === 'LOCAL'
+                          ? 'Local leave must be applied at least 1 day in advance'
+                          : 'Sick leave can be applied for today'}
+                      </p>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    {/* Half Day Option */}
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <label className="flex items-center">
+                        <input
+                          type="checkbox"
+                          name="isHalfDay"
+                          checked={formData.isHalfDay}
+                          onChange={handleFormChange}
+                          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        <span className="ml-2 text-sm font-medium text-gray-700">Half Day Leave</span>
+                      </label>
+
+                      {formData.isHalfDay && (
+                        <div className="mt-3 flex gap-4">
+                          <label className="flex items-center">
+                            <input
+                              type="radio"
+                              name="halfDayPeriod"
+                              value="MORNING"
+                              checked={formData.halfDayPeriod === 'MORNING'}
+                              onChange={handleFormChange}
+                              className="border-gray-300 text-primary-600 focus:ring-primary-500"
+                            />
+                            <span className="ml-2 text-sm text-gray-700">Morning (First Half)</span>
+                          </label>
+                          <label className="flex items-center">
+                            <input
+                              type="radio"
+                              name="halfDayPeriod"
+                              value="AFTERNOON"
+                              checked={formData.halfDayPeriod === 'AFTERNOON'}
+                              onChange={handleFormChange}
+                              className="border-gray-300 text-primary-600 focus:ring-primary-500"
+                            />
+                            <span className="ml-2 text-sm text-gray-700">Afternoon (Second Half)</span>
+                          </label>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className={formData.isHalfDay ? '' : 'grid grid-cols-2 gap-4'}>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          {formData.isHalfDay ? 'Date' : 'Start Date'}
+                        </label>
                         <input
                           type="date"
                           name="startDate"
                           value={formData.startDate}
                           onChange={handleFormChange}
                           required
-                          min={new Date().toISOString().split('T')[0]}
+                          min={getMinDate()}
                           className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
                         />
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                        <input
-                          type="date"
-                          name="endDate"
-                          value={formData.endDate}
-                          onChange={handleFormChange}
-                          required
-                          min={formData.startDate || new Date().toISOString().split('T')[0]}
-                          className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
-                        />
-                      </div>
+                      {!formData.isHalfDay && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                          <input
+                            type="date"
+                            name="endDate"
+                            value={formData.endDate}
+                            onChange={handleFormChange}
+                            required
+                            min={formData.startDate || getMinDate()}
+                            className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
+                          />
+                        </div>
+                      )}
                     </div>
 
                     {calculateDays() > 0 && (

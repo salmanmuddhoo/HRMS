@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { body } from 'express-validator';
+import multer from 'multer';
 import {
   getAllHolidays,
   getHolidayById,
@@ -7,11 +8,30 @@ import {
   updateHoliday,
   deleteHoliday,
   getUpcomingHolidays,
+  uploadHolidays,
 } from '../controllers/holidayController';
 import { authenticate, authorize } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 
 const router = Router();
+
+// Configure multer for Excel file upload
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/vnd.ms-excel', // .xls
+      'text/csv', // .csv
+    ];
+    if (allowedTypes.includes(file.mimetype) || file.originalname.match(/\.(xlsx|xls|csv)$/)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only Excel files (.xlsx, .xls) and CSV files are allowed'));
+    }
+  },
+});
 
 // All routes require authentication
 router.use(authenticate);
@@ -41,5 +61,13 @@ router.put(
 );
 
 router.delete('/:id', authorize('ADMIN', 'EMPLOYER'), deleteHoliday);
+
+// Upload holidays from Excel file
+router.post(
+  '/upload',
+  authorize('ADMIN', 'EMPLOYER'),
+  upload.single('file'),
+  uploadHolidays
+);
 
 export default router;

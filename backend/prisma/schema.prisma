@@ -86,11 +86,13 @@ model Leave {
   leaveType    LeaveType
   startDate    DateTime
   endDate      DateTime
-  totalDays    Int
+  totalDays    Float
   reason       String
   attachment   String?
   status       LeaveStatus @default(PENDING)
   isUrgent     Boolean     @default(false)
+  isHalfDay    Boolean     @default(false)
+  halfDayPeriod String?    // MORNING or AFTERNOON
   approvedBy   String?
   approvedAt   DateTime?
   rejectedBy   String?
@@ -103,17 +105,19 @@ model Leave {
 }
 
 model Attendance {
-  id          String   @id @default(uuid())
-  employeeId  String
-  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  date        DateTime
-  isPresent   Boolean  @default(true)
-  isLeave     Boolean  @default(false)
-  leaveType   LeaveType?
-  isAbsence   Boolean  @default(false)
-  remarks     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(uuid())
+  employeeId    String
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  date          DateTime
+  isPresent     Boolean  @default(true)
+  isLeave       Boolean  @default(false)
+  leaveType     LeaveType?
+  isHalfDay     Boolean  @default(false)
+  halfDayPeriod String?  // MORNING or AFTERNOON
+  isAbsence     Boolean  @default(false)
+  remarks       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@unique([employeeId, date])
   @@map("attendances")

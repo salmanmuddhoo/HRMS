@@ -35,6 +35,11 @@ interface PayslipData {
   };
 }
 
+// Format currency in Mauritian Rupees
+const formatCurrency = (amount: number): string => {
+  return `Rs ${amount.toLocaleString('en-MU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
 export const generatePayslipPDF = async (
   data: PayslipData,
   outputPath: string
@@ -218,7 +223,7 @@ export const generatePayslipPDF = async (
         .fillColor(secondaryColor)
         .text('Base Salary:', leftColumn, yPos)
         .text(
-          `$${data.payroll.baseSalary.toFixed(2)}`,
+          formatCurrency(data.payroll.baseSalary),
           leftColumn + 150,
           yPos,
           { align: 'right', width: 100 }
@@ -228,7 +233,7 @@ export const generatePayslipPDF = async (
       doc
         .text('Travelling Allowance:', leftColumn, yPos)
         .text(
-          `$${data.payroll.travellingAllowance.toFixed(2)}`,
+          formatCurrency(data.payroll.travellingAllowance),
           leftColumn + 150,
           yPos,
           { align: 'right', width: 100 }
@@ -238,7 +243,7 @@ export const generatePayslipPDF = async (
       doc
         .text('Other Allowances:', leftColumn, yPos)
         .text(
-          `$${data.payroll.otherAllowances.toFixed(2)}`,
+          formatCurrency(data.payroll.otherAllowances),
           leftColumn + 150,
           yPos,
           { align: 'right', width: 100 }
@@ -250,7 +255,7 @@ export const generatePayslipPDF = async (
         .fillColor(primaryColor)
         .text('Gross Salary:', leftColumn, yPos)
         .text(
-          `$${data.payroll.grossSalary.toFixed(2)}`,
+          formatCurrency(data.payroll.grossSalary),
           leftColumn + 150,
           yPos,
           { align: 'right', width: 100 }
@@ -281,7 +286,7 @@ export const generatePayslipPDF = async (
         .fillColor(secondaryColor)
         .text('Travelling Allowance Deduction:', leftColumn, yPos)
         .text(
-          `$${data.payroll.travellingDeduction.toFixed(2)}`,
+          formatCurrency(data.payroll.travellingDeduction),
           leftColumn + 200,
           yPos,
           { align: 'right', width: 100 }
@@ -293,7 +298,7 @@ export const generatePayslipPDF = async (
         .fillColor(primaryColor)
         .text('Total Deductions:', leftColumn, yPos)
         .text(
-          `$${data.payroll.totalDeductions.toFixed(2)}`,
+          formatCurrency(data.payroll.totalDeductions),
           leftColumn + 200,
           yPos,
           { align: 'right', width: 100 }
@@ -317,7 +322,7 @@ export const generatePayslipPDF = async (
         .text('NET SALARY:', leftColumn, doc.y)
         .fontSize(16)
         .text(
-          `$${data.payroll.netSalary.toFixed(2)}`,
+          formatCurrency(data.payroll.netSalary),
           leftColumn + 150,
           doc.y - 16,
           { align: 'right', width: 150 }

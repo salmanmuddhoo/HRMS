@@ -376,3 +376,47 @@ export const getEmployeeStats = async (req: AuthRequest, res: Response) => {
     return sendError(res, 'Failed to fetch employee stats', 500);
   }
 };
+
+export const resetEmployeePassword = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { newPassword } = req.body;
+
+    // Find the employee and their user account
+    const employee = await prisma.employee.findUnique({
+      where: { id },
+      include: {
+        user: true,
+      },
+    });
+
+    if (!employee || !employee.user) {
+      return sendError(res, 'Employee or user account not found', 404);
+    }
+
+    // Hash the new password
+    const hashedPassword = await hashPassword(newPassword);
+
+    // Update the user's password
+    await prisma.user.update({
+      where: { id: employee.user.id },
+      data: { password: hashedPassword },
+    });
+
+    // Log the password reset in audit log
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.userId,
+        action: 'PASSWORD_RESET',
+        entityType: 'USER',
+        entityId: employee.user.id,
+        details: `Password reset for employee ${employee.firstName} ${employee.lastName} (${employee.employeeId})`,
+      },
+    });
+
+    return sendSuccess(res, null, 'Password reset successfully');
+  } catch (error: any) {
+    console.error('Reset password error:', error);
+    return sendError(res, 'Failed to reset password', 500);
+  }
+};

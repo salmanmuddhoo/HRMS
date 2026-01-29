@@ -16,9 +16,13 @@ const EmployeeForm: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [fetchingDefaults, setFetchingDefaults] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [leaveDefaults, setLeaveDefaults] = useState<LeaveDefaults>({ defaultLocalLeave: 15, defaultSickLeave: 10 });
   const [useProration, setUseProration] = useState(true);
   const [manualLeave, setManualLeave] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [resettingPassword, setResettingPassword] = useState(false);
 
   const [formData, setFormData] = useState({
     employeeId: '',
@@ -150,6 +154,35 @@ const EmployeeForm: React.FC = () => {
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to reset the password for ${formData.firstName} ${formData.lastName}?`)) {
+      return;
+    }
+
+    setError('');
+    setSuccess('');
+    setResettingPassword(true);
+
+    try {
+      const response = await api.resetEmployeePassword(id!, newPassword);
+      if ((response as any).success) {
+        setSuccess('Password reset successfully');
+        setNewPassword('');
+        setShowResetPassword(false);
+        setTimeout(() => setSuccess(''), 3000);
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to reset password');
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
   if (fetchingDefaults) {
     return (
       <Layout>
@@ -170,6 +203,72 @@ const EmployeeForm: React.FC = () => {
         {error && (
           <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
             <p className="text-red-600">{error}</p>
+          </div>
+        )}
+
+        {success && (
+          <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-md">
+            <p className="text-green-600">{success}</p>
+          </div>
+        )}
+
+        {/* Reset Password Section (only in edit mode) */}
+        {isEdit && (
+          <div className="mb-6 bg-white shadow rounded-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-medium text-gray-900">Reset Password</h2>
+              {!showResetPassword && (
+                <button
+                  type="button"
+                  onClick={() => setShowResetPassword(true)}
+                  className="px-4 py-2 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700"
+                >
+                  Reset Password
+                </button>
+              )}
+            </div>
+
+            {showResetPassword && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    New Password
+                  </label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password (min 6 characters)"
+                    minLength={6}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    This will reset the employee's password immediately.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleResetPassword}
+                    disabled={resettingPassword || !newPassword}
+                    className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 text-sm"
+                  >
+                    {resettingPassword ? 'Resetting...' : 'Confirm Reset'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowResetPassword(false);
+                      setNewPassword('');
+                      setError('');
+                    }}
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

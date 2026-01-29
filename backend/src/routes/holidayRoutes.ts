@@ -38,6 +38,15 @@ router.use(authenticate);
 
 router.get('/', getAllHolidays);
 router.get('/upcoming', getUpcomingHolidays);
+
+// Upload holidays from Excel file - must come before /:id route
+router.post(
+  '/upload',
+  authorize('ADMIN', 'EMPLOYER'),
+  upload.single('file'),
+  uploadHolidays
+);
+
 router.get('/:id', getHolidayById);
 
 router.post(
@@ -61,13 +70,5 @@ router.put(
 );
 
 router.delete('/:id', authorize('ADMIN', 'EMPLOYER'), deleteHoliday);
-
-// Upload holidays from Excel file
-router.post(
-  '/upload',
-  authorize('ADMIN', 'EMPLOYER'),
-  upload.single('file'),
-  uploadHolidays
-);
 
 export default router;

@@ -82,8 +82,8 @@ export const generatePayslip = async (req: AuthRequest, res: Response) => {
       },
     };
 
-    // Generate PDF
-    const uploadDir = process.env.UPLOAD_DIR || 'uploads';
+    // Generate PDF in tmp directory for serverless compatibility
+    const uploadDir = process.env.UPLOAD_DIR || '/tmp/uploads';
     const payslipsDir = path.join(uploadDir, 'payslips');
     const filename = `payslip_${payroll.employee.employeeId}_${payroll.month}_${payroll.year}.pdf`;
     const pdfPath = path.join(payslipsDir, filename);
@@ -119,6 +119,7 @@ export const downloadPayslip = async (req: AuthRequest, res: Response) => {
   try {
     const { payrollId } = req.params;
 
+    // Find payslip with payroll and employee data
     const payslip = await prisma.payslip.findUnique({
       where: { payrollId },
       include: {
@@ -144,8 +145,79 @@ export const downloadPayslip = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // If PDF doesn't exist, regenerate it
     if (!payslip.pdfPath || !fs.existsSync(payslip.pdfPath)) {
-      return sendError(res, 'Payslip file not found', 404);
+      console.log('Payslip file not found, regenerating...');
+
+      // Get company details from system config
+      const companyName =
+        (await prisma.systemConfig.findUnique({ where: { key: 'COMPANY_NAME' } }))
+          ?.value || process.env.COMPANY_NAME || 'Company Name';
+      const companyAddress =
+        (
+          await prisma.systemConfig.findUnique({
+            where: { key: 'COMPANY_ADDRESS' },
+          })
+        )?.value || process.env.COMPANY_ADDRESS || 'Company Address';
+      const companyPhone =
+        (await prisma.systemConfig.findUnique({ where: { key: 'COMPANY_PHONE' } }))
+          ?.value || process.env.COMPANY_PHONE || 'N/A';
+      const companyEmail =
+        (await prisma.systemConfig.findUnique({ where: { key: 'COMPANY_EMAIL' } }))
+          ?.value || process.env.COMPANY_EMAIL || 'N/A';
+
+      // Prepare payslip data
+      const payslipData = {
+        employee: {
+          employeeId: payslip.payroll.employee.employeeId,
+          firstName: payslip.payroll.employee.firstName,
+          lastName: payslip.payroll.employee.lastName,
+          email: payslip.payroll.employee.email,
+          department: payslip.payroll.employee.department,
+          jobTitle: payslip.payroll.employee.jobTitle,
+        },
+        payroll: {
+          id: payslip.payroll.id,
+          month: payslip.payroll.month,
+          year: payslip.payroll.year,
+          workingDays: payslip.payroll.workingDays,
+          presentDays: payslip.payroll.presentDays,
+          leaveDays: payslip.payroll.leaveDays,
+          absenceDays: payslip.payroll.absenceDays,
+          baseSalary: payslip.payroll.baseSalary,
+          travellingAllowance: payslip.payroll.travellingAllowance,
+          otherAllowances: payslip.payroll.otherAllowances,
+          travellingDeduction: payslip.payroll.travellingDeduction,
+          totalDeductions: payslip.payroll.totalDeductions,
+          grossSalary: payslip.payroll.grossSalary,
+          netSalary: payslip.payroll.netSalary,
+        },
+        company: {
+          name: companyName,
+          address: companyAddress,
+          phone: companyPhone,
+          email: companyEmail,
+        },
+      };
+
+      // Generate PDF in tmp directory for serverless compatibility
+      const uploadDir = process.env.UPLOAD_DIR || '/tmp/uploads';
+      const payslipsDir = path.join(uploadDir, 'payslips');
+      const filename = `payslip_${payslip.payroll.employee.employeeId}_${payslip.payroll.month}_${payslip.payroll.year}.pdf`;
+      const pdfPath = path.join(payslipsDir, filename);
+
+      await generatePayslipPDF(payslipData, pdfPath);
+
+      // Update payslip record with new path
+      await prisma.payslip.update({
+        where: { payrollId },
+        data: {
+          pdfPath,
+          generatedAt: new Date(),
+        },
+      });
+
+      payslip.pdfPath = pdfPath;
     }
 
     // Update downloaded timestamp

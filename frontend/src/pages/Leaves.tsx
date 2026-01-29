@@ -232,19 +232,10 @@ const Leaves: React.FC = () => {
     ? user?.employee?.localLeaveBalance
     : user?.employee?.sickLeaveBalance;
 
-  // Separate leaves into upcoming (approved future) and history
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const upcomingLeaves = leaves.filter(leave => {
-    const startDate = new Date(leave.startDate);
-    return leave.status === 'APPROVED' && startDate >= today;
-  });
-
-  const pendingLeaves = leaves.filter(leave => leave.status === 'PENDING');
-  const pastLeaves = leaves.filter(leave => {
-    const endDate = new Date(leave.endDate);
-    return leave.status !== 'PENDING' && (leave.status === 'REJECTED' || endDate < today);
+  // Filter leaves based on selected filter
+  const filteredLeaves = leaves.filter(leave => {
+    if (!filter) return true;
+    return leave.status === filter;
   });
 
   if (loading) {
@@ -283,9 +274,9 @@ const Leaves: React.FC = () => {
         {!isEmployer && user?.employee && (
           <div className="bg-white shadow rounded-lg p-6 mb-6">
             <h2 className="text-lg font-medium text-gray-900 mb-4">My Leave Balance</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="bg-blue-50 rounded-lg p-4 text-center">
-                <p className="text-sm text-blue-600 font-medium">Local Leave</p>
+                <p className="text-sm text-blue-600 font-medium">Annual Leave</p>
                 <p className="text-3xl font-bold text-blue-700">{user.employee.localLeaveBalance}</p>
                 <p className="text-xs text-blue-500">days available</p>
               </div>
@@ -294,152 +285,29 @@ const Leaves: React.FC = () => {
                 <p className="text-3xl font-bold text-orange-700">{user.employee.sickLeaveBalance}</p>
                 <p className="text-xs text-orange-500">days available</p>
               </div>
-              <div className="bg-yellow-50 rounded-lg p-4 text-center">
-                <p className="text-sm text-yellow-600 font-medium">Pending</p>
-                <p className="text-3xl font-bold text-yellow-700">{pendingLeaves.length}</p>
-                <p className="text-xs text-yellow-500">requests</p>
-              </div>
-              <div className="bg-green-50 rounded-lg p-4 text-center">
-                <p className="text-sm text-green-600 font-medium">Upcoming</p>
-                <p className="text-3xl font-bold text-green-700">{upcomingLeaves.length}</p>
-                <p className="text-xs text-green-500">approved leaves</p>
-              </div>
             </div>
           </div>
         )}
 
-        {/* Upcoming Leaves Section */}
-        {upcomingLeaves.length > 0 && (
-          <div className="bg-white shadow rounded-lg p-6 mb-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-              <span className="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
-              Upcoming Approved Leaves
-            </h2>
-            <div className="space-y-3">
-              {upcomingLeaves.map((leave) => (
-                <div key={leave.id} className="flex items-center justify-between p-4 bg-green-50 rounded-lg border border-green-200">
-                  <div className="flex items-center">
-                    <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mr-4">
-                      <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900">
-                        {leave.leaveType === 'LOCAL' ? 'Local Leave' : 'Sick Leave'}
-                        {isEmployer && leave.employee && (
-                          <span className="ml-2 text-gray-500">- {leave.employee.firstName} {leave.employee.lastName}</span>
-                        )}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {new Date(leave.startDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                        {leave.totalDays > 1 && (
-                          <> to {new Date(leave.endDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-lg font-semibold text-green-700">{leave.totalDays} day{leave.totalDays > 1 ? 's' : ''}</p>
-                    <span className={getStatusBadge(leave.status)}>{leave.status}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Pending Leaves Section */}
-        {pendingLeaves.length > 0 && (
-          <div className="bg-white shadow rounded-lg p-6 mb-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-              <span className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></span>
-              Pending Requests
-            </h2>
-            <div className="space-y-3">
-              {pendingLeaves.map((leave) => (
-                <div key={leave.id} className="flex items-center justify-between p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                  <div className="flex items-center">
-                    <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mr-4">
-                      <svg className="w-6 h-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900">
-                        {leave.leaveType === 'LOCAL' ? 'Local Leave' : 'Sick Leave'}
-                        {leave.isUrgent && <span className="ml-2 px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded-full">Urgent</span>}
-                        {isEmployer && leave.employee && (
-                          <span className="ml-2 text-gray-500">- {leave.employee.firstName} {leave.employee.lastName}</span>
-                        )}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {new Date(leave.startDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                        {leave.totalDays > 1 && (
-                          <> to {new Date(leave.endDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</>
-                        )}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">{leave.reason}</p>
-                    </div>
-                  </div>
-                  <div className="text-right flex items-center gap-3">
-                    <div>
-                      <p className="text-lg font-semibold text-yellow-700">{leave.totalDays} day{leave.totalDays > 1 ? 's' : ''}</p>
-                      <span className={getStatusBadge(leave.status)}>{leave.status}</span>
-                    </div>
-                    {isEmployer ? (
-                      <div className="flex flex-col gap-1">
-                        <button
-                          onClick={() => handleApprove(leave.id)}
-                          className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => handleReject(leave.id)}
-                          className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={async () => {
-                          if (window.confirm('Cancel this leave request?')) {
-                            await api.cancelLeave(leave.id);
-                            fetchLeaves();
-                          }
-                        }}
-                        className="px-3 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700"
-                      >
-                        Cancel
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Leave History Section */}
+        {/* All Leaves Section */}
         <div className="bg-white shadow rounded-lg p-6">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-medium text-gray-900">Leave History</h2>
+            <h2 className="text-lg font-medium text-gray-900">My Leaves</h2>
             <select
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               className="rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2 text-sm"
             >
               <option value="">All Status</option>
+              <option value="PENDING">Pending</option>
               <option value="APPROVED">Approved</option>
               <option value="REJECTED">Rejected</option>
             </select>
           </div>
 
-          {pastLeaves.length === 0 ? (
+          {filteredLeaves.length === 0 ? (
             <div className="text-center text-gray-500 py-8">
-              No leave history found.
+              No leaves found.
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -456,7 +324,7 @@ const Leaves: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {pastLeaves.map((leave) => (
+                  {filteredLeaves.map((leave) => (
                     <tr key={leave.id} className="hover:bg-gray-50">
                       {isEmployer && (
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">

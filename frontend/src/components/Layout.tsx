@@ -52,6 +52,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Payslips', href: '/payslips', forAll: true },
     { name: 'Holidays', href: '/holidays', forEmployer: true },
     { name: 'Reports', href: '/reports', forEmployer: true },
+    { name: 'Profile', href: '/profile', forAll: true },
     { name: 'Settings', href: '/settings', forAdmin: true },
   ];
 
@@ -99,10 +100,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
             {/* Desktop Right Side */}
             <div className="hidden md:flex md:items-center md:gap-3">
-              <Link
-                to="/profile"
-                className="text-sm text-gray-700 hover:text-primary-600 flex items-center gap-1"
-              >
+              <span className="text-sm text-gray-700 flex items-center gap-1">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
@@ -111,7 +109,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     ? `${user.employee.firstName} ${user.employee.lastName}`
                     : user?.email}
                 </span>
-              </Link>
+              </span>
               <button
                 onClick={handleLogout}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
@@ -182,13 +180,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 </div>
               </div>
               <div className="space-y-1 px-4">
-                <Link
-                  to="/profile"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="block px-4 py-2 text-base font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md"
-                >
-                  Profile
-                </Link>
                 <button
                   onClick={() => {
                     setMobileMenuOpen(false);

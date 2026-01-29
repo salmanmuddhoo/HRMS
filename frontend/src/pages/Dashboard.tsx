@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { DashboardStats, ApiResponse } from '../types';
 import Layout from '../components/Layout';
+import Calendar from '../components/Calendar';
 
 const Dashboard: React.FC = () => {
   const { user, isEmployer } = useAuth();
@@ -188,42 +189,50 @@ const Dashboard: React.FC = () => {
         )}
 
         {!isEmployer && user?.employee && (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Leave Balance</h3>
-                <div className="mt-4">
-                  <p className="text-sm text-gray-600">
-                    Annual Leave: <span className="font-semibold">{user.employee.localLeaveBalance} days</span>
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    Sick Leave: <span className="font-semibold">{user.employee.sickLeaveBalance} days</span>
-                  </p>
+          <>
+            {/* Quick Stats Cards */}
+            <div className="grid grid-cols-1 gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3 mb-6">
+              <div className="bg-white overflow-hidden shadow rounded-lg">
+                <div className="p-4 sm:p-5">
+                  <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">Leave Balance</h3>
+                  <div className="mt-4">
+                    <p className="text-sm text-gray-600">
+                      Annual Leave: <span className="font-semibold">{user.employee.localLeaveBalance} days</span>
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      Sick Leave: <span className="font-semibold">{user.employee.sickLeaveBalance} days</span>
+                    </p>
+                  </div>
+                  <Link to="/leaves" className="mt-4 inline-block text-sm text-primary-600 hover:text-primary-900">
+                    View leave history →
+                  </Link>
                 </div>
-                <Link to="/leaves" className="mt-4 text-primary-600 hover:text-primary-900">
-                  View leave history →
-                </Link>
+              </div>
+
+              <div className="bg-white overflow-hidden shadow rounded-lg">
+                <div className="p-4 sm:p-5">
+                  <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">My Leaves</h3>
+                  <p className="text-sm text-gray-600 mb-4">Request and manage your leaves</p>
+                  <Link to="/leaves" className="text-sm text-primary-600 hover:text-primary-900">
+                    View all leaves →
+                  </Link>
+                </div>
+              </div>
+
+              <div className="bg-white overflow-hidden shadow rounded-lg">
+                <div className="p-4 sm:p-5">
+                  <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">Payslips</h3>
+                  <p className="text-sm text-gray-600 mb-4">Access your salary information</p>
+                  <Link to="/payslips" className="text-sm text-primary-600 hover:text-primary-900">
+                    View payslips →
+                  </Link>
+                </div>
               </div>
             </div>
 
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">My Leaves</h3>
-                <Link to="/leaves" className="text-primary-600 hover:text-primary-900">
-                  View all leaves →
-                </Link>
-              </div>
-            </div>
-
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Payslips</h3>
-                <Link to="/payslips" className="text-primary-600 hover:text-primary-900">
-                  View payslips →
-                </Link>
-              </div>
-            </div>
-          </div>
+            {/* Calendar */}
+            <Calendar employeeId={user.employee.id} />
+          </>
         )}
       </div>
     </Layout>

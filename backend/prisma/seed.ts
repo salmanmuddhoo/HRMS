@@ -17,7 +17,7 @@ async function main() {
       },
       {
         key: 'COMPANY_NAME',
-        value: 'ELPMS Company',
+        value: 'Waqt Company',
         description: 'Company name for payslips',
       },
       {
@@ -32,7 +32,7 @@ async function main() {
       },
       {
         key: 'COMPANY_EMAIL',
-        value: 'hr@elpms.com',
+        value: 'hr@waqt.com',
         description: 'Company email address',
       },
     ],
@@ -43,10 +43,10 @@ async function main() {
   console.log('Creating admin user...');
   const adminPassword = await bcrypt.hash('Admin@123', 10);
   const adminUser = await prisma.user.upsert({
-    where: { email: 'admin@elpms.com' },
+    where: { email: 'admin@waqt.com' },
     update: {},
     create: {
-      email: 'admin@elpms.com',
+      email: 'admin@waqt.com',
       password: adminPassword,
       role: 'ADMIN',
     },
@@ -56,14 +56,14 @@ async function main() {
 
   // Create admin employee profile
   const adminEmployee = await prisma.employee.upsert({
-    where: { email: 'admin@elpms.com' },
+    where: { email: 'admin@waqt.com' },
     update: {},
     create: {
       employeeId: 'EMP001',
       userId: adminUser.id,
       firstName: 'Admin',
       lastName: 'User',
-      email: 'admin@elpms.com',
+      email: 'admin@waqt.com',
       phone: '+1234567890',
       department: 'Administration',
       jobTitle: 'System Administrator',
@@ -89,7 +89,7 @@ async function main() {
       employeeId: 'EMP002',
       firstName: 'John',
       lastName: 'Doe',
-      email: 'john.doe@elpms.com',
+      email: 'john.doe@waqt.com',
       phone: '+1234567891',
       department: 'Engineering',
       jobTitle: 'Senior Software Engineer',
@@ -104,7 +104,7 @@ async function main() {
       employeeId: 'EMP003',
       firstName: 'Jane',
       lastName: 'Smith',
-      email: 'jane.smith@elpms.com',
+      email: 'jane.smith@waqt.com',
       phone: '+1234567892',
       department: 'Human Resources',
       jobTitle: 'HR Manager',
@@ -119,7 +119,7 @@ async function main() {
       employeeId: 'EMP004',
       firstName: 'Michael',
       lastName: 'Johnson',
-      email: 'michael.johnson@elpms.com',
+      email: 'michael.johnson@waqt.com',
       phone: '+1234567893',
       department: 'Engineering',
       jobTitle: 'Software Engineer',
@@ -134,7 +134,7 @@ async function main() {
       employeeId: 'EMP005',
       firstName: 'Sarah',
       lastName: 'Williams',
-      email: 'sarah.williams@elpms.com',
+      email: 'sarah.williams@waqt.com',
       phone: '+1234567894',
       department: 'Finance',
       jobTitle: 'Financial Analyst',
@@ -206,10 +206,10 @@ async function main() {
   console.log('Database seeding completed successfully!');
   console.log('\nDefault login credentials:');
   console.log('Admin:');
-  console.log('  Email: admin@elpms.com');
+  console.log('  Email: admin@waqt.com');
   console.log('  Password: Admin@123');
   console.log('\nEmployee (John Doe):');
-  console.log('  Email: john.doe@elpms.com');
+  console.log('  Email: john.doe@waqt.com');
   console.log('  Password: Employee@123');
 }
 

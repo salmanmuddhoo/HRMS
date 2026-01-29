@@ -1,6 +1,7 @@
-import React, { ReactNode, useState } from 'react';
+import React, { ReactNode, useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
 
 interface LayoutProps {
   children: ReactNode;
@@ -11,6 +12,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [pendingLeavesCount, setPendingLeavesCount] = useState(0);
 
   const handleLogout = () => {
     logout();
@@ -18,6 +20,28 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   const isAdmin = user?.role === 'ADMIN';
+
+  // Fetch pending leaves count for employers/admins
+  useEffect(() => {
+    const fetchPendingLeaves = async () => {
+      if (isEmployer) {
+        try {
+          const response = await api.getLeaves({ status: 'PENDING' });
+          if ((response as any).success) {
+            const leaves = (response as any).data || [];
+            setPendingLeavesCount(leaves.length);
+          }
+        } catch (error) {
+          console.error('Failed to fetch pending leaves:', error);
+        }
+      }
+    };
+
+    fetchPendingLeaves();
+    // Refresh count every 2 minutes
+    const interval = setInterval(fetchPendingLeaves, 120000);
+    return () => clearInterval(interval);
+  }, [isEmployer]);
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', forAll: true },
@@ -56,13 +80,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   <Link
                     key={item.name}
                     to={item.href}
-                    className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                    className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium relative ${
                       location.pathname.startsWith(item.href)
                         ? 'border-primary-500 text-gray-900'
                         : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
                     }`}
                   >
                     {item.name}
+                    {item.name === 'Leaves' && isEmployer && pendingLeavesCount > 0 && (
+                      <span className="ml-1 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-600 rounded-full">
+                        {pendingLeavesCount > 9 ? '9+' : pendingLeavesCount}
+                      </span>
+                    )}
                   </Link>
                 ))}
               </div>
@@ -121,13 +150,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   key={item.name}
                   to={item.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`block pl-3 pr-4 py-2 border-l-4 text-base font-medium ${
+                  className={`flex items-center justify-between pl-3 pr-4 py-2 border-l-4 text-base font-medium ${
                     location.pathname.startsWith(item.href)
                       ? 'bg-primary-50 border-primary-500 text-primary-700'
                       : 'border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800'
                   }`}
                 >
-                  {item.name}
+                  <span>{item.name}</span>
+                  {item.name === 'Leaves' && isEmployer && pendingLeavesCount > 0 && (
+                    <span className="inline-flex items-center justify-center w-6 h-6 text-xs font-bold text-white bg-red-600 rounded-full">
+                      {pendingLeavesCount > 9 ? '9+' : pendingLeavesCount}
+                    </span>
+                  )}
                 </Link>
               ))}
             </div>

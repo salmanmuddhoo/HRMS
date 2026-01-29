@@ -93,6 +93,14 @@ class ApiService {
     return this.request({ method: 'GET', url: '/employees/stats' });
   }
 
+  async resetEmployeePassword(id: string, newPassword: string) {
+    return this.request({
+      method: 'POST',
+      url: `/employees/${id}/reset-password`,
+      data: { newPassword },
+    });
+  }
+
   // Leaves
   async getLeaves(params?: any) {
     return this.request({ method: 'GET', url: '/leaves', params });

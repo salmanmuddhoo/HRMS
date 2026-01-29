@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/auth';
 import prisma from '../config/database';
 import { sendSuccess, sendError } from '../utils/response';
 import { calculateDaysBetween } from '../utils/date';
+import emailService from '../services/emailService';
 
 export const getAllLeaves = async (req: AuthRequest, res: Response) => {
   try {
@@ -217,6 +218,34 @@ export const applyLeave = async (req: AuthRequest, res: Response) => {
       },
     });
 
+    // Send email notification to all admins and employers
+    try {
+      const adminUsers = await prisma.user.findMany({
+        where: {
+          role: { in: ['ADMIN', 'EMPLOYER'] },
+        },
+        select: {
+          email: true,
+        },
+      });
+
+      const adminEmails = adminUsers.map(u => u.email);
+      if (adminEmails.length > 0) {
+        await emailService.sendLeaveApprovalNotification(
+          adminEmails,
+          `${employee.firstName} ${employee.lastName}`,
+          leaveType,
+          start.toISOString(),
+          (isHalfDay ? start : end).toISOString(),
+          totalDays,
+          reason || ''
+        );
+      }
+    } catch (emailError) {
+      console.error('Failed to send email notification:', emailError);
+      // Don't fail the request if email fails
+    }
+
     return sendSuccess(res, leave, 'Leave application submitted successfully', 201);
   } catch (error: any) {
     console.error('Apply leave error:', error);
@@ -353,6 +382,34 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
       },
     });
 
+    // Send email notification to employee
+    try {
+      const employeeUser = await prisma.user.findFirst({
+        where: {
+          employee: {
+            id: leave.employeeId,
+          },
+        },
+        select: {
+          email: true,
+        },
+      });
+
+      if (employeeUser) {
+        await emailService.sendLeaveStatusNotification(
+          employeeUser.email,
+          `${leave.employee.firstName} ${leave.employee.lastName}`,
+          leave.leaveType,
+          leave.startDate.toISOString(),
+          leave.endDate.toISOString(),
+          'APPROVED'
+        );
+      }
+    } catch (emailError) {
+      console.error('Failed to send approval email notification:', emailError);
+      // Don't fail the request if email fails
+    }
+
     return sendSuccess(res, updatedLeave, 'Leave approved successfully');
   } catch (error: any) {
     console.error('Approve leave error:', error);
@@ -408,6 +465,35 @@ export const rejectLeave = async (req: AuthRequest, res: Response) => {
         changes: JSON.stringify({ leave: updatedLeave }),
       },
     });
+
+    // Send email notification to employee
+    try {
+      const employeeUser = await prisma.user.findFirst({
+        where: {
+          employee: {
+            id: leave.employeeId,
+          },
+        },
+        select: {
+          email: true,
+        },
+      });
+
+      if (employeeUser) {
+        await emailService.sendLeaveStatusNotification(
+          employeeUser.email,
+          `${updatedLeave.employee.firstName} ${updatedLeave.employee.lastName}`,
+          leave.leaveType,
+          leave.startDate.toISOString(),
+          leave.endDate.toISOString(),
+          'REJECTED',
+          rejectionReason
+        );
+      }
+    } catch (emailError) {
+      console.error('Failed to send rejection email notification:', emailError);
+      // Don't fail the request if email fails
+    }
 
     return sendSuccess(res, updatedLeave, 'Leave rejected successfully');
   } catch (error: any) {

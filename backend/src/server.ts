@@ -49,9 +49,10 @@ app.use('/api/config', configRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`
+// Only start the server when not running as a serverless function
+if (process.env.VERCEL !== '1') {
+  app.listen(PORT, () => {
+    console.log(`
 ╔════════════════════════════════════════════════════════════════╗
 ║                                                                ║
 ║   Employee Leave & Payroll Management System (ELPMS)          ║
@@ -63,7 +64,8 @@ app.listen(PORT, () => {
 ║   Health Check: http://localhost:${PORT}/health                   ║
 ║                                                                ║
 ╚════════════════════════════════════════════════════════════════╝
-  `);
-});
+    `);
+  });
+}
 
 export default app;

@@ -191,7 +191,7 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
         totalDeductions,
         grossSalary,
         netSalary,
-        status: 'DRAFT',
+        status: 'DRAFT' as const,
       });
     }
 

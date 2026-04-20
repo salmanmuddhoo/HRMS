@@ -24,9 +24,20 @@ interface Leave {
   };
 }
 
+interface Employee {
+  id: string;
+  employeeId: string;
+  firstName: string;
+  lastName: string;
+  department: string;
+  localLeaveBalance: number;
+  sickLeaveBalance: number;
+}
+
 const Leaves: React.FC = () => {
   const { user, isEmployer } = useAuth();
   const [leaves, setLeaves] = useState<Leave[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [employeeSearch, setEmployeeSearch] = useState('');
@@ -34,9 +45,20 @@ const Leaves: React.FC = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showApplyModal, setShowApplyModal] = useState(false);
+  const [showAddForEmpModal, setShowAddForEmpModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const [addForEmpData, setAddForEmpData] = useState({
+    employeeId: '',
+    leaveType: 'LOCAL' as 'LOCAL' | 'SICK',
+    startDate: '',
+    endDate: '',
+    reason: '',
+    isHalfDay: false,
+    halfDayPeriod: 'MORNING' as 'MORNING' | 'AFTERNOON',
+  });
 
   const getTomorrow = () => {
     const d = new Date();
@@ -55,8 +77,16 @@ const Leaves: React.FC = () => {
 
   useEffect(() => {
     fetchLeaves();
+    if (isEmployer) fetchEmployees();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
+
+  const fetchEmployees = async () => {
+    try {
+      const res = await api.getEmployees({ status: 'ACTIVE' });
+      if ((res as any).success) setEmployees((res as any).data || []);
+    } catch {}
+  };
 
   const fetchLeaves = async () => {
     setLoading(true);
@@ -129,6 +159,27 @@ const Leaves: React.FC = () => {
     }
   };
 
+  const handleAddForEmpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addForEmpData.employeeId) { setError('Please select an employee.'); return; }
+    setSubmitting(true);
+    setError('');
+    try {
+      const res = await api.addUrgentLeave(addForEmpData);
+      if ((res as any).success) {
+        showMsg('success', 'Leave added and balance adjusted.');
+        setShowAddForEmpModal(false);
+        setAddForEmpData({ employeeId: '', leaveType: 'LOCAL', startDate: '', endDate: '', reason: '', isHalfDay: false, halfDayPeriod: 'MORNING' });
+        fetchLeaves();
+        fetchEmployees();
+      }
+    } catch (e: any) {
+      setError(e.response?.data?.error || e.response?.data?.message || 'Failed to add leave.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleApplySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -176,7 +227,14 @@ const Leaves: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">
             {isEmployer ? 'Leave Management' : 'My Leaves'}
           </h1>
-          {!isEmployer && (
+          {isEmployer ? (
+            <button
+              onClick={() => { setShowAddForEmpModal(true); setError(''); }}
+              className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 text-sm font-medium"
+            >
+              + Add Leave for Employee
+            </button>
+          ) : (
             <button
               onClick={() => setShowApplyModal(true)}
               className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 text-sm font-medium"
@@ -429,6 +487,135 @@ const Leaves: React.FC = () => {
                     </button>
                     <button type="submit" disabled={submitting} className="px-4 py-2 bg-primary-600 text-white rounded-md text-sm hover:bg-primary-700 disabled:opacity-50">
                       {submitting ? 'Submitting...' : 'Submit'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add Leave for Employee Modal */}
+        {showAddForEmpModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold text-gray-900">Add Leave for Employee</h2>
+                  <button onClick={() => { setShowAddForEmpModal(false); setError(''); }} className="text-gray-400 hover:text-gray-600">
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {error && <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded text-red-600 text-sm">{error}</div>}
+
+                <form onSubmit={handleAddForEmpSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Employee</label>
+                    <select
+                      value={addForEmpData.employeeId}
+                      onChange={(e) => setAddForEmpData(prev => ({ ...prev, employeeId: e.target.value }))}
+                      required
+                      className="w-full border border-gray-300 rounded-md p-2 text-sm focus:border-primary-500 focus:ring-primary-500"
+                    >
+                      <option value="">Select employee...</option>
+                      {employees.map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.firstName} {emp.lastName} ({emp.employeeId}) — Annual: {emp.localLeaveBalance}d, Sick: {emp.sickLeaveBalance}d
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Leave Type</label>
+                    <select
+                      value={addForEmpData.leaveType}
+                      onChange={(e) => setAddForEmpData(prev => ({ ...prev, leaveType: e.target.value as 'LOCAL' | 'SICK' }))}
+                      className="w-full border border-gray-300 rounded-md p-2 text-sm"
+                    >
+                      <option value="LOCAL">Annual Leave</option>
+                      <option value="SICK">Sick Leave</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="addEmpHalfDay"
+                      checked={addForEmpData.isHalfDay}
+                      onChange={(e) => setAddForEmpData(prev => ({
+                        ...prev,
+                        isHalfDay: e.target.checked,
+                        endDate: e.target.checked ? prev.startDate : prev.endDate,
+                      }))}
+                      className="rounded border-gray-300"
+                    />
+                    <label htmlFor="addEmpHalfDay" className="text-sm text-gray-700">Half day</label>
+                  </div>
+
+                  {addForEmpData.isHalfDay && (
+                    <select
+                      value={addForEmpData.halfDayPeriod}
+                      onChange={(e) => setAddForEmpData(prev => ({ ...prev, halfDayPeriod: e.target.value as 'MORNING' | 'AFTERNOON' }))}
+                      className="w-full border border-gray-300 rounded-md p-2 text-sm"
+                    >
+                      <option value="MORNING">Morning</option>
+                      <option value="AFTERNOON">Afternoon</option>
+                    </select>
+                  )}
+
+                  <div className={`grid gap-3 ${addForEmpData.isHalfDay ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {addForEmpData.isHalfDay ? 'Date' : 'Start Date'}
+                      </label>
+                      <input
+                        type="date"
+                        value={addForEmpData.startDate}
+                        onChange={(e) => setAddForEmpData(prev => ({
+                          ...prev,
+                          startDate: e.target.value,
+                          endDate: addForEmpData.isHalfDay ? e.target.value : prev.endDate,
+                        }))}
+                        required
+                        className="w-full border border-gray-300 rounded-md p-2 text-sm"
+                      />
+                    </div>
+                    {!addForEmpData.isHalfDay && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                        <input
+                          type="date"
+                          value={addForEmpData.endDate}
+                          onChange={(e) => setAddForEmpData(prev => ({ ...prev, endDate: e.target.value }))}
+                          required
+                          className="w-full border border-gray-300 rounded-md p-2 text-sm"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+                    <textarea
+                      value={addForEmpData.reason}
+                      onChange={(e) => setAddForEmpData(prev => ({ ...prev, reason: e.target.value }))}
+                      required
+                      rows={3}
+                      className="w-full border border-gray-300 rounded-md p-2 text-sm"
+                      placeholder="Reason for leave..."
+                    />
+                  </div>
+
+                  <div className="flex gap-3 justify-end">
+                    <button type="button" onClick={() => { setShowAddForEmpModal(false); setError(''); }} className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50">
+                      Cancel
+                    </button>
+                    <button type="submit" disabled={submitting} className="px-4 py-2 bg-primary-600 text-white rounded-md text-sm hover:bg-primary-700 disabled:opacity-50">
+                      {submitting ? 'Adding...' : 'Add Leave'}
                     </button>
                   </div>
                 </form>

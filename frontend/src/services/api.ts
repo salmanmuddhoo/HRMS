@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const API_URL = process.env.REACT_APP_API_URL || '/api';
 
 class ApiService {
   private api: AxiosInstance;
@@ -238,6 +238,30 @@ class ApiService {
       url: '/holidays/upcoming',
       params: { limit },
     });
+  }
+
+  async uploadHolidays(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request({
+      method: 'POST',
+      url: '/holidays/upload',
+      data: formData,
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  }
+
+  // System Config
+  async getConfig() {
+    return this.request({ method: 'GET', url: '/config' });
+  }
+
+  async getLeaveDefaults() {
+    return this.request({ method: 'GET', url: '/config/leave-defaults' });
+  }
+
+  async updateConfig(configs: Array<{ key: string; value: string; description?: string }>) {
+    return this.request({ method: 'POST', url: '/config/batch', data: configs });
   }
 
   // Reports

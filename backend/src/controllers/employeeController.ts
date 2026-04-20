@@ -225,7 +225,7 @@ export const updateEmployee = async (req: AuthRequest, res: Response) => {
     if (sets.length > 0) {
       vals.push(id);
       await prisma.$executeRawUnsafe(
-        `UPDATE employees SET ${sets.join(', ')} WHERE id = $${vals.length}::uuid`,
+        `UPDATE employees SET ${sets.join(', ')} WHERE id = CAST($${vals.length} AS uuid)`,
         ...vals
       );
     }

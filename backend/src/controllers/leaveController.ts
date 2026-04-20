@@ -263,9 +263,9 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
 
       // Deduct leave balance — use raw SQL to avoid PgBouncer float8 binary encoding bug
       if (leave.leaveType === 'LOCAL') {
-        await tx.$executeRaw`UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - CAST(${String(leave.totalDays)} AS float8) WHERE id = ${leave.employeeId}::uuid`;
+        await tx.$executeRaw`UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - CAST(${String(leave.totalDays)} AS float8) WHERE id = CAST(${leave.employeeId} AS uuid)`;
       } else if (leave.leaveType === 'SICK') {
-        await tx.$executeRaw`UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - CAST(${String(leave.totalDays)} AS float8) WHERE id = ${leave.employeeId}::uuid`;
+        await tx.$executeRaw`UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - CAST(${String(leave.totalDays)} AS float8) WHERE id = CAST(${leave.employeeId} AS uuid)`;
       }
 
       if (leave.isHalfDay) {
@@ -467,9 +467,9 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
 
       // Deduct leave balance — raw SQL to avoid PgBouncer float8 binary encoding bug
       if (leaveType === 'LOCAL') {
-        await tx.$executeRaw`UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - CAST(${String(totalDays)} AS float8) WHERE id = ${employeeId}::uuid`;
+        await tx.$executeRaw`UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - CAST(${String(totalDays)} AS float8) WHERE id = CAST(${employeeId} AS uuid)`;
       } else if (leaveType === 'SICK') {
-        await tx.$executeRaw`UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - CAST(${String(totalDays)} AS float8) WHERE id = ${employeeId}::uuid`;
+        await tx.$executeRaw`UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - CAST(${String(totalDays)} AS float8) WHERE id = CAST(${employeeId} AS uuid)`;
       }
 
       // Create attendance records
@@ -564,9 +564,9 @@ export const cancelLeave = async (req: AuthRequest, res: Response) => {
       await prisma.$transaction(async (tx) => {
         // Raw SQL to avoid PgBouncer float8 binary encoding bug
         if (leave.leaveType === 'LOCAL') {
-          await tx.$executeRaw`UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" + CAST(${String(leave.totalDays)} AS float8) WHERE id = ${leave.employeeId}::uuid`;
+          await tx.$executeRaw`UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" + CAST(${String(leave.totalDays)} AS float8) WHERE id = CAST(${leave.employeeId} AS uuid)`;
         } else if (leave.leaveType === 'SICK') {
-          await tx.$executeRaw`UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" + CAST(${String(leave.totalDays)} AS float8) WHERE id = ${leave.employeeId}::uuid`;
+          await tx.$executeRaw`UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" + CAST(${String(leave.totalDays)} AS float8) WHERE id = CAST(${leave.employeeId} AS uuid)`;
         }
 
         // Delete attendance records

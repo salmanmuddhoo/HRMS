@@ -109,7 +109,7 @@ export const getLeaveById = async (req: AuthRequest, res: Response) => {
 
 export const applyLeave = async (req: AuthRequest, res: Response) => {
   try {
-    const { leaveType, startDate, endDate, reason, attachment } = req.body;
+    const { leaveType, startDate, endDate, reason, attachment, isHalfDay, halfDayPeriod } = req.body;
 
     // Get employee record
     const employee = await prisma.employee.findUnique({
@@ -124,10 +124,9 @@ export const applyLeave = async (req: AuthRequest, res: Response) => {
       return sendError(res, 'Cannot apply leave - account not active', 403);
     }
 
-    // Calculate total days
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const totalDays = calculateDaysBetween(start, end);
+    const totalDays = isHalfDay ? 0.5 : calculateDaysBetween(start, end);
 
     // Check leave balance
     if (leaveType === 'LOCAL' && employee.localLeaveBalance < totalDays) {
@@ -175,6 +174,8 @@ export const applyLeave = async (req: AuthRequest, res: Response) => {
         reason,
         attachment,
         status: 'PENDING',
+        isHalfDay: Boolean(isHalfDay),
+        halfDayPeriod: isHalfDay ? (halfDayPeriod || 'MORNING') : null,
       },
       include: {
         employee: {
@@ -282,25 +283,43 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
       }
 
       // Create attendance records
-      const current = new Date(leave.startDate);
-      const attendanceRecords = [];
-
-      while (current <= leave.endDate) {
-        attendanceRecords.push({
-          employeeId: leave.employeeId,
-          date: new Date(current),
-          isPresent: false,
-          isLeave: true,
-          leaveType: leave.leaveType,
-          isAbsence: false,
+      if (leave.isHalfDay) {
+        await tx.attendance.upsert({
+          where: { employeeId_date: { employeeId: leave.employeeId, date: leave.startDate } },
+          create: {
+            employeeId: leave.employeeId,
+            date: leave.startDate,
+            isPresent: true,
+            isLeave: true,
+            leaveType: leave.leaveType,
+            isHalfDay: true,
+            halfDayPeriod: leave.halfDayPeriod,
+            isAbsence: false,
+          },
+          update: {
+            isLeave: true,
+            leaveType: leave.leaveType,
+            isHalfDay: true,
+            halfDayPeriod: leave.halfDayPeriod,
+          },
         });
-        current.setDate(current.getDate() + 1);
+      } else {
+        const current = new Date(leave.startDate);
+        const attendanceRecords = [];
+        while (current <= leave.endDate) {
+          attendanceRecords.push({
+            employeeId: leave.employeeId,
+            date: new Date(current),
+            isPresent: false,
+            isLeave: true,
+            leaveType: leave.leaveType,
+            isHalfDay: false,
+            isAbsence: false,
+          });
+          current.setDate(current.getDate() + 1);
+        }
+        await tx.attendance.createMany({ data: attendanceRecords, skipDuplicates: true });
       }
-
-      await tx.attendance.createMany({
-        data: attendanceRecords,
-        skipDuplicates: true,
-      });
 
       return approved;
     });

@@ -68,8 +68,8 @@ model Employee {
   baseSalary       Float
   travellingAllowance Float         @default(0)
   otherAllowances  Float            @default(0)
-  localLeaveBalance Int             @default(0)
-  sickLeaveBalance Int              @default(0)
+  localLeaveBalance Float           @default(0)
+  sickLeaveBalance Float            @default(0)
   leaves           Leave[]
   attendances      Attendance[]
   payrolls         Payroll[]
@@ -87,11 +87,13 @@ model Leave {
   leaveType    LeaveType
   startDate    DateTime
   endDate      DateTime
-  totalDays    Int
+  totalDays    Float
   reason       String
   attachment   String?
   status       LeaveStatus @default(PENDING)
   isUrgent     Boolean     @default(false)
+  isHalfDay    Boolean     @default(false)
+  halfDayPeriod String?
   approvedBy   String?
   approvedAt   DateTime?
   rejectedBy   String?
@@ -111,6 +113,8 @@ model Attendance {
   isPresent   Boolean  @default(true)
   isLeave     Boolean  @default(false)
   leaveType   LeaveType?
+  isHalfDay   Boolean   @default(false)
+  halfDayPeriod String?
   isAbsence   Boolean  @default(false)
   remarks     String?
   createdAt   DateTime @default(now())

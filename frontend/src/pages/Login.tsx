@@ -30,9 +30,10 @@ const Login: React.FC = () => {
       <div className="max-w-md w-full space-y-8">
         <div className="flex flex-col items-center">
           <img
-            src="/logo.svg"
+            src="/logo/logo.png"
             alt="Al Barakah MCSL"
             className="h-40 w-40 object-contain"
+            onError={(e) => { e.currentTarget.src = '/logo.svg'; }}
           />
           <p className="mt-2 text-center text-sm text-gray-600">
             Employee Leave & Payroll Management System

@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "installCommand": "npm install && cd backend && npm install && npx prisma generate && npx prisma db push && cd ../frontend && npm install --legacy-peer-deps",
-  "buildCommand": "cd frontend && CI=false npm run build",
+  "installCommand": "npm install && cd backend && npm install && npx prisma generate && cd ../frontend && npm install --legacy-peer-deps",
+  "buildCommand": "cd backend && npx prisma db push --skip-generate && cd ../frontend && CI=false npm run build",
   "outputDirectory": "frontend/build",
   "functions": {
     "api/index.ts": {

@@ -428,7 +428,7 @@ export const rejectLeave = async (req: AuthRequest, res: Response) => {
 
 export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
   try {
-    const { employeeId, leaveType, startDate, endDate, reason } = req.body;
+    const { employeeId, leaveType, startDate, endDate, reason, isHalfDay, halfDayPeriod } = req.body;
 
     const employee = await prisma.employee.findUnique({
       where: { id: employeeId },
@@ -440,7 +440,15 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
 
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const totalDays = calculateDaysBetween(start, end);
+    const totalDays = isHalfDay ? 0.5 : calculateDaysBetween(start, end);
+
+    // Check leave balance
+    if (leaveType === 'LOCAL' && employee.localLeaveBalance < totalDays) {
+      return sendError(res, `Insufficient annual leave balance. Available: ${employee.localLeaveBalance} days`, 400);
+    }
+    if (leaveType === 'SICK' && employee.sickLeaveBalance < totalDays) {
+      return sendError(res, `Insufficient sick leave balance. Available: ${employee.sickLeaveBalance} days`, 400);
+    }
 
     // Create urgent leave (auto-approved)
     const leave = await prisma.$transaction(async (tx) => {
@@ -454,6 +462,8 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
           reason,
           status: 'APPROVED',
           isUrgent: true,
+          isHalfDay: Boolean(isHalfDay),
+          halfDayPeriod: isHalfDay ? (halfDayPeriod || 'MORNING') : null,
           approvedBy: req.user!.userId,
           approvedAt: new Date(),
         },
@@ -474,43 +484,53 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
       if (leaveType === 'LOCAL') {
         await tx.employee.update({
           where: { id: employeeId },
-          data: {
-            localLeaveBalance: {
-              decrement: totalDays,
-            },
-          },
+          data: { localLeaveBalance: { decrement: totalDays } },
         });
       } else if (leaveType === 'SICK') {
         await tx.employee.update({
           where: { id: employeeId },
-          data: {
-            sickLeaveBalance: {
-              decrement: totalDays,
-            },
-          },
+          data: { sickLeaveBalance: { decrement: totalDays } },
         });
       }
 
       // Create attendance records
-      const current = new Date(start);
-      const attendanceRecords = [];
-
-      while (current <= end) {
-        attendanceRecords.push({
-          employeeId,
-          date: new Date(current),
-          isPresent: false,
-          isLeave: true,
-          leaveType,
-          isAbsence: false,
+      if (isHalfDay) {
+        await tx.attendance.upsert({
+          where: { employeeId_date: { employeeId, date: start } },
+          create: {
+            employeeId,
+            date: start,
+            isPresent: true,
+            isLeave: true,
+            leaveType,
+            isHalfDay: true,
+            halfDayPeriod: halfDayPeriod || 'MORNING',
+            isAbsence: false,
+          },
+          update: {
+            isLeave: true,
+            leaveType,
+            isHalfDay: true,
+            halfDayPeriod: halfDayPeriod || 'MORNING',
+          },
         });
-        current.setDate(current.getDate() + 1);
+      } else {
+        const current = new Date(start);
+        const attendanceRecords = [];
+        while (current <= end) {
+          attendanceRecords.push({
+            employeeId,
+            date: new Date(current),
+            isPresent: false,
+            isLeave: true,
+            leaveType,
+            isHalfDay: false,
+            isAbsence: false,
+          });
+          current.setDate(current.getDate() + 1);
+        }
+        await tx.attendance.createMany({ data: attendanceRecords, skipDuplicates: true });
       }
-
-      await tx.attendance.createMany({
-        data: attendanceRecords,
-        skipDuplicates: true,
-      });
 
       return urgentLeave;
     });

@@ -267,6 +267,8 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
       } else if (leave.leaveType === 'SICK') {
         await tx.$executeRaw`UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - CAST(${String(leave.totalDays)} AS float8) WHERE id = ${leave.employeeId}::uuid`;
       }
+
+      if (leave.isHalfDay) {
         await tx.attendance.upsert({
           where: { employeeId_date: { employeeId: leave.employeeId, date: leave.startDate } },
           create: {

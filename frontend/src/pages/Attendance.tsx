@@ -51,20 +51,6 @@ const Attendance: React.FC = () => {
     return new Date(today.setDate(diff));
   });
 
-  // Add Leave modal
-  const [showLeaveModal, setShowLeaveModal] = useState(false);
-  const [leaveData, setLeaveData] = useState({
-    employeeId: '',
-    leaveType: 'LOCAL' as 'LOCAL' | 'SICK',
-    date: '',
-    reason: '',
-    isHalfDay: false,
-    halfDayPeriod: 'MORNING' as 'MORNING' | 'AFTERNOON',
-  });
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-
   // Get week dates
   const getWeekDates = useCallback(() => {
     const dates: Date[] = [];
@@ -180,88 +166,6 @@ const Attendance: React.FC = () => {
     }
   }, [currentWeekStart, employees.length, fetchAttendance]);
 
-  const handleAddLeave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setError('');
-    setSuccess('');
-
-    // Check leave balance
-    const employee = employees.find((emp) => emp.id === leaveData.employeeId);
-    const requiredDays = leaveData.isHalfDay ? 0.5 : 1;
-    if (employee) {
-      const balance =
-        leaveData.leaveType === 'LOCAL'
-          ? employee.localLeaveBalance
-          : employee.sickLeaveBalance;
-      if (balance < requiredDays) {
-        setError(
-          `Insufficient ${leaveData.leaveType === 'LOCAL' ? 'Annual' : 'Sick'} leave balance`
-        );
-        setSubmitting(false);
-        return;
-      }
-    }
-
-    try {
-      const response = await api.addUrgentLeave({
-        employeeId: leaveData.employeeId,
-        leaveType: leaveData.leaveType,
-        startDate: leaveData.date,
-        endDate: leaveData.date,
-        reason: leaveData.reason || 'Marked by management',
-        isHalfDay: leaveData.isHalfDay,
-        halfDayPeriod: leaveData.isHalfDay ? leaveData.halfDayPeriod : null,
-      });
-      if ((response as any).success) {
-        setSuccess('Leave added successfully');
-        setShowLeaveModal(false);
-        setLeaveData({
-          employeeId: '',
-          leaveType: 'LOCAL',
-          date: '',
-          reason: '',
-          isHalfDay: false,
-          halfDayPeriod: 'MORNING',
-        });
-        fetchAttendance();
-        fetchEmployees();
-      }
-    } catch (error: any) {
-      setError(error.response?.data?.message || 'Failed to add leave');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleCellClick = (employeeId: string, date: Date) => {
-    if (!isEmployer) return;
-    const dateKey = formatDateKey(date);
-    const existing = attendanceMap[employeeId]?.[dateKey];
-
-    // Don't allow modifying existing full-day leave records
-    if (existing?.isLeave && !existing?.isHalfDay) return;
-
-    setLeaveData({
-      employeeId,
-      leaveType: 'LOCAL',
-      date: dateKey,
-      reason: '',
-      isHalfDay: false,
-      halfDayPeriod: 'MORNING',
-    });
-    setShowLeaveModal(true);
-  };
-
-  const getSelectedEmployeeBalance = () => {
-    const employee = employees.find((emp) => emp.id === leaveData.employeeId);
-    if (!employee) return null;
-    return {
-      local: employee.localLeaveBalance,
-      sick: employee.sickLeaveBalance,
-    };
-  };
-
   const isHoliday = (date: Date) => {
     const dateKey = formatDateKey(date);
     return holidays.find((h) => h.date.split('T')[0] === dateKey);
@@ -274,18 +178,15 @@ const Attendance: React.FC = () => {
     const isWeekend = date.getDay() === 0 || date.getDay() === 6;
     const holiday = isHoliday(date);
 
-    // Colors: Annual Leave = Blue, Sick Leave = Light Red, Present = Green
-    const annualLeaveColor = '#bfdbfe'; // blue-200
-    const sickLeaveColor = '#fecaca'; // red-200
-    const presentColor = isTodayColumn ? '#86efac' : '#bbf7d0'; // green-300 for today, green-200 otherwise
+    const annualLeaveColor = '#bfdbfe';
+    const sickLeaveColor = '#fecaca';
+    const presentColor = isTodayColumn ? '#86efac' : '#bbf7d0';
 
     let bgColor = 'bg-gray-50';
     let content: React.ReactNode = '-';
     let textColor = 'text-gray-400';
-    let cursor = isEmployer && !isWeekend && !holiday ? 'cursor-pointer hover:bg-gray-100' : '';
     let customStyle: React.CSSProperties = {};
 
-    // Today column highlight - more prominent background for current date
     if (isTodayColumn) {
       bgColor = 'bg-primary-100';
     }
@@ -293,9 +194,7 @@ const Attendance: React.FC = () => {
     if (isWeekend) {
       bgColor = 'bg-gray-200';
       content = '-';
-      cursor = '';
     } else if (holiday) {
-      // Public holiday - greyed out
       bgColor = 'bg-gray-300';
       content = (
         <div className="flex flex-col items-center">
@@ -303,7 +202,6 @@ const Attendance: React.FC = () => {
         </div>
       );
       textColor = 'text-gray-600';
-      cursor = '';
     } else if (record) {
       if (record.isLeave) {
         const isHalfDayLeave = record.isHalfDay;
@@ -313,16 +211,11 @@ const Attendance: React.FC = () => {
         const leaveTextColor = isSick ? 'text-red-700' : 'text-blue-700';
 
         if (isHalfDayLeave) {
-          // Diagonal split
-          // AM Leave (morning off): Top-left = Leave, Bottom-right = Present
-          // PM Leave (afternoon off): Top-left = Present, Bottom-right = Leave
           if (period === 'MORNING') {
-            // Morning off: Top-left leave, bottom-right present
             customStyle = {
               background: `linear-gradient(135deg, ${leaveColor} 50%, ${presentColor} 50%)`,
             };
           } else {
-            // Afternoon off: Top-left present, bottom-right leave
             customStyle = {
               background: `linear-gradient(135deg, ${presentColor} 50%, ${leaveColor} 50%)`,
             };
@@ -347,9 +240,7 @@ const Attendance: React.FC = () => {
               )}
             </div>
           );
-          cursor = isEmployer ? 'cursor-pointer hover:opacity-80' : '';
         } else {
-          // Full day leave
           if (isSick) {
             bgColor = 'bg-red-100';
             textColor = 'text-red-700';
@@ -363,7 +254,6 @@ const Attendance: React.FC = () => {
               <span className="text-xs">Leave</span>
             </div>
           );
-          cursor = '';
         }
       } else if (record.isAbsence) {
         bgColor = 'bg-red-200';
@@ -376,7 +266,7 @@ const Attendance: React.FC = () => {
       } else if (record.isPresent) {
         bgColor = isTodayColumn ? '' : 'bg-green-200';
         if (isTodayColumn) {
-          customStyle = { backgroundColor: '#86efac' }; // green-300 for today
+          customStyle = { backgroundColor: '#86efac' };
         }
         content = 'P';
         textColor = 'text-green-700';
@@ -384,7 +274,7 @@ const Attendance: React.FC = () => {
     } else if (isPast && !isWeekend && !holiday) {
       bgColor = isTodayColumn ? '' : 'bg-green-100';
       if (isTodayColumn) {
-        customStyle = { backgroundColor: '#bbf7d0' }; // green-200 for today
+        customStyle = { backgroundColor: '#bbf7d0' };
       }
       content = 'P';
       textColor = 'text-green-700';
@@ -393,9 +283,8 @@ const Attendance: React.FC = () => {
     return (
       <td
         key={dateKey}
-        onClick={() => !isWeekend && !holiday && !(record?.isLeave && !record?.isHalfDay) && handleCellClick(employeeId, date)}
         style={customStyle}
-        className={`px-2 py-2 text-center text-sm font-medium ${bgColor} ${textColor} ${cursor} border-r border-gray-200 h-14 relative`}
+        className={`px-2 py-2 text-center text-sm font-medium ${bgColor} ${textColor} border-r border-gray-200 h-14 relative`}
         title={holiday ? holiday.name : (record?.isHalfDay ? `${record.halfDayPeriod === 'MORNING' ? 'Morning' : 'Afternoon'} ${record.leaveType === 'SICK' ? 'Sick' : 'Annual'} Leave` : (record?.remarks || (isWeekend ? 'Weekend' : '')))}
       >
         {content}
@@ -413,44 +302,12 @@ const Attendance: React.FC = () => {
     );
   }
 
-  const selectedBalance = getSelectedEmployeeBalance();
-
   return (
     <Layout>
       <div className="px-4 py-6">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Attendance Management</h1>
-          {isEmployer && (
-            <button
-              onClick={() => {
-                setLeaveData({
-                  employeeId: '',
-                  leaveType: 'LOCAL',
-                  date: '',
-                  reason: '',
-                  isHalfDay: false,
-                  halfDayPeriod: 'MORNING',
-                });
-                setShowLeaveModal(true);
-              }}
-              className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
-            >
-              Add Leave
-            </button>
-          )}
         </div>
-
-        {/* Success/Error Messages */}
-        {success && (
-          <div className="mb-4 p-4 bg-green-100 text-green-700 rounded-md">
-            {success}
-          </div>
-        )}
-        {error && (
-          <div className="mb-4 p-4 bg-red-100 text-red-700 rounded-md">
-            {error}
-          </div>
-        )}
 
         {/* Week Navigation */}
         <div className="mb-6 flex items-center justify-between bg-white p-4 rounded-lg shadow">
@@ -491,11 +348,11 @@ const Attendance: React.FC = () => {
           </div>
           <div className="flex items-center gap-2">
             <span className="w-10 h-8 bg-blue-100 text-blue-700 flex items-center justify-center rounded font-medium text-xs">AL</span>
-            <span>AL Annual Leave</span>
+            <span>Annual Leave</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-10 h-8 bg-red-100 text-red-700 flex items-center justify-center rounded font-medium text-xs">SL</span>
-            <span>SL Sick Leave</span>
+            <span>Sick Leave</span>
           </div>
         </div>
 
@@ -555,197 +412,6 @@ const Attendance: React.FC = () => {
                   ))}
                 </tbody>
               </table>
-            </div>
-          </div>
-        )}
-
-        {/* Add Leave Modal */}
-        {showLeaveModal && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Add Leave</h2>
-              <form onSubmit={handleAddLeave}>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Employee *
-                  </label>
-                  <select
-                    value={leaveData.employeeId}
-                    onChange={(e) =>
-                      setLeaveData({ ...leaveData, employeeId: e.target.value })
-                    }
-                    required
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
-                  >
-                    <option value="">Select Employee</option>
-                    {employees.map((emp) => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.firstName} {emp.lastName} ({emp.employeeId})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Show leave balance for selected employee */}
-                {selectedBalance && (
-                  <div className="mb-4 p-3 bg-gray-50 rounded-md">
-                    <div className="text-sm font-medium text-gray-700 mb-2">Leave Balance:</div>
-                    <div className="flex gap-4">
-                      <div className={`text-sm ${leaveData.leaveType === 'LOCAL' ? 'font-bold text-blue-600' : 'text-gray-600'}`}>
-                        Annual: {selectedBalance.local} days
-                      </div>
-                      <div className={`text-sm ${leaveData.leaveType === 'SICK' ? 'font-bold text-orange-600' : 'text-gray-600'}`}>
-                        Sick: {selectedBalance.sick} days
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Leave Type *
-                  </label>
-                  <div className="flex gap-4">
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        name="leaveType"
-                        value="LOCAL"
-                        checked={leaveData.leaveType === 'LOCAL'}
-                        onChange={(e) =>
-                          setLeaveData({ ...leaveData, leaveType: e.target.value as 'LOCAL' | 'SICK' })
-                        }
-                        className="mr-2"
-                      />
-                      <span className="text-sm">Annual Leave</span>
-                    </label>
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        name="leaveType"
-                        value="SICK"
-                        checked={leaveData.leaveType === 'SICK'}
-                        onChange={(e) =>
-                          setLeaveData({ ...leaveData, leaveType: e.target.value as 'LOCAL' | 'SICK' })
-                        }
-                        className="mr-2"
-                      />
-                      <span className="text-sm">Sick Leave</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Date *
-                  </label>
-                  <input
-                    type="date"
-                    value={leaveData.date}
-                    onChange={(e) =>
-                      setLeaveData({ ...leaveData, date: e.target.value })
-                    }
-                    required
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
-                  />
-                </div>
-
-                {/* Half Day Option */}
-                <div className="mb-4">
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={leaveData.isHalfDay}
-                      onChange={(e) =>
-                        setLeaveData({ ...leaveData, isHalfDay: e.target.checked })
-                      }
-                      className="mr-2 rounded"
-                    />
-                    <span className="text-sm font-medium text-gray-700">Half Day Leave</span>
-                    <span className="ml-2 text-xs text-gray-500">(0.5 days)</span>
-                  </label>
-                </div>
-
-                {/* Half Day Period Selection */}
-                {leaveData.isHalfDay && (
-                  <div className="mb-4 ml-6 p-3 bg-gray-50 rounded-md">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Select Period *
-                    </label>
-                    <div className="flex gap-4">
-                      <label className="flex items-center">
-                        <input
-                          type="radio"
-                          name="halfDayPeriod"
-                          value="MORNING"
-                          checked={leaveData.halfDayPeriod === 'MORNING'}
-                          onChange={(e) =>
-                            setLeaveData({ ...leaveData, halfDayPeriod: e.target.value as 'MORNING' | 'AFTERNOON' })
-                          }
-                          className="mr-2"
-                        />
-                        <span className="text-sm">Morning (AM)</span>
-                      </label>
-                      <label className="flex items-center">
-                        <input
-                          type="radio"
-                          name="halfDayPeriod"
-                          value="AFTERNOON"
-                          checked={leaveData.halfDayPeriod === 'AFTERNOON'}
-                          onChange={(e) =>
-                            setLeaveData({ ...leaveData, halfDayPeriod: e.target.value as 'MORNING' | 'AFTERNOON' })
-                          }
-                          className="mr-2"
-                        />
-                        <span className="text-sm">Afternoon (PM)</span>
-                      </label>
-                    </div>
-                  </div>
-                )}
-
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Reason
-                  </label>
-                  <textarea
-                    value={leaveData.reason}
-                    onChange={(e) =>
-                      setLeaveData({ ...leaveData, reason: e.target.value })
-                    }
-                    rows={3}
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
-                    placeholder="Optional reason..."
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowLeaveModal(false);
-                      setLeaveData({
-                        employeeId: '',
-                        leaveType: 'LOCAL',
-                        date: '',
-                        reason: '',
-                        isHalfDay: false,
-                        halfDayPeriod: 'MORNING',
-                      });
-                      setError('');
-                    }}
-                    className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50"
-                  >
-                    {submitting ? 'Adding...' : `Add ${leaveData.isHalfDay ? 'Half Day' : 'Full Day'} Leave`}
-                  </button>
-                </div>
-              </form>
             </div>
           </div>
         )}

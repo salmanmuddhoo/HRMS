@@ -181,50 +181,55 @@ export const updateEmployee = async (req: AuthRequest, res: Response) => {
       phone,
       department,
       jobTitle,
+      joiningDate,
       baseSalary,
       travellingAllowance,
       otherAllowances,
       localLeaveBalance,
       sickLeaveBalance,
       status,
+      role,
     } = req.body;
 
     const employee = await prisma.employee.findUnique({
       where: { id },
+      include: { user: { select: { id: true, role: true } } },
     });
 
     if (!employee) {
       return sendError(res, 'Employee not found', 404);
     }
 
+    const toFloat = (val: any) => (val !== undefined && val !== '' && val !== null) ? parseFloat(val) : undefined;
+
     const updatedEmployee = await prisma.employee.update({
       where: { id },
       data: {
         firstName,
         lastName,
-        phone,
+        phone: phone || null,
         department,
         jobTitle,
-        baseSalary: baseSalary ? parseFloat(baseSalary) : undefined,
-        travellingAllowance: travellingAllowance
-          ? parseFloat(travellingAllowance)
-          : undefined,
-        otherAllowances: otherAllowances ? parseFloat(otherAllowances) : undefined,
-        localLeaveBalance: localLeaveBalance
-          ? parseInt(localLeaveBalance)
-          : undefined,
-        sickLeaveBalance: sickLeaveBalance ? parseInt(sickLeaveBalance) : undefined,
+        joiningDate: joiningDate ? new Date(joiningDate) : undefined,
+        baseSalary: toFloat(baseSalary),
+        travellingAllowance: toFloat(travellingAllowance),
+        otherAllowances: toFloat(otherAllowances),
+        localLeaveBalance: toFloat(localLeaveBalance),
+        sickLeaveBalance: toFloat(sickLeaveBalance),
         status,
       },
       include: {
-        user: {
-          select: {
-            email: true,
-            role: true,
-          },
-        },
+        user: { select: { email: true, role: true } },
       },
     });
+
+    // Update user role if changed
+    if (role && employee.user && role !== employee.user.role) {
+      await prisma.user.update({
+        where: { id: employee.user.id },
+        data: { role },
+      });
+    }
 
     // Create audit log
     await prisma.auditLog.create({
@@ -233,14 +238,14 @@ export const updateEmployee = async (req: AuthRequest, res: Response) => {
         action: 'UPDATE',
         entity: 'EMPLOYEE',
         entityId: employee.id,
-        changes: JSON.stringify({ before: employee, after: updatedEmployee }),
+        changes: JSON.stringify({ employeeId: employee.employeeId, name: `${employee.firstName} ${employee.lastName}` }),
       },
     });
 
     return sendSuccess(res, updatedEmployee, 'Employee updated successfully');
   } catch (error: any) {
-    console.error('Update employee error:', error);
-    return sendError(res, 'Failed to update employee', 500);
+    console.error('Update employee error:', error.message || error);
+    return sendError(res, error.message || 'Failed to update employee', 500);
   }
 };
 

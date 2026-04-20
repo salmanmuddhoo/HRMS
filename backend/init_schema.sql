@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS "users" (
     "email" TEXT UNIQUE NOT NULL,
     "password" TEXT NOT NULL,
     "role" "Role" DEFAULT 'EMPLOYEE' NOT NULL,
+    "emailNotifications" BOOLEAN DEFAULT true NOT NULL,
     "createdAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "updatedAt" TIMESTAMP(3) NOT NULL
 );

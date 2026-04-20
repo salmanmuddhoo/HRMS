@@ -30,19 +30,12 @@ const Login: React.FC = () => {
       <div className="max-w-md w-full space-y-8">
         <div className="flex flex-col items-center">
           <img
-            src="/logo.png"
-            alt="Waqt Logo"
-            className="h-24 w-auto mb-4"
-            onError={(e) => {
-              // Hide image if logo doesn't exist
-              e.currentTarget.style.display = 'none';
-            }}
+            src="/logo.svg"
+            alt="Al Barakah MCSL"
+            className="h-40 w-40 object-contain"
           />
-          <h2 className="text-center text-3xl font-extrabold text-gray-900">
-            Waqt
-          </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Time & Payroll Management System
+            Employee Leave & Payroll Management System
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -98,8 +91,8 @@ const Login: React.FC = () => {
 
           <div className="text-sm text-gray-600">
             <p className="mb-2">Default credentials:</p>
-            <p>Admin: admin@waqt.com / Admin@123</p>
-            <p>Employee: john.doe@waqt.com / Employee@123</p>
+            <p>Admin: admin@elpms.com / Admin@123</p>
+            <p>Employee: john.doe@elpms.com / Employee@123</p>
           </div>
         </form>
       </div>

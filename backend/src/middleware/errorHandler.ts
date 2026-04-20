@@ -9,7 +9,7 @@ export const errorHandler = (
   err: AppError,
   req: Request,
   res: Response,
-  _next: NextFunction
+  next: NextFunction
 ) => {
   const statusCode = err.statusCode || 500;
   const message = err.message || 'Internal Server Error';
@@ -28,7 +28,7 @@ export const errorHandler = (
   });
 };
 
-export const notFound = (req: Request, res: Response, _next: NextFunction) => {
+export const notFound = (req: Request, res: Response, next: NextFunction) => {
   res.status(404).json({
     success: false,
     error: `Route ${req.originalUrl} not found`,

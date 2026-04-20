@@ -12,11 +12,15 @@ interface Leave {
   reason: string;
   status: string;
   isUrgent: boolean;
+  isHalfDay: boolean;
+  rejectionReason?: string;
   createdAt: string;
   employee?: {
+    id: string;
     firstName: string;
     lastName: string;
     employeeId: string;
+    department: string;
   };
 }
 
@@ -25,21 +29,18 @@ const Leaves: React.FC = () => {
   const [leaves, setLeaves] = useState<Leave[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [editingLeave, setEditingLeave] = useState<Leave | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showApplyModal, setShowApplyModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  // Get tomorrow's date as default
   const getTomorrow = () => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split('T')[0];
-  };
-
-  const getToday = () => {
-    return new Date().toISOString().split('T')[0];
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split('T')[0];
   };
 
   const [formData, setFormData] = useState({
@@ -57,192 +58,110 @@ const Leaves: React.FC = () => {
   }, [filter]);
 
   const fetchLeaves = async () => {
+    setLoading(true);
     try {
-      const params = filter ? { status: filter } : {};
+      const params: any = {};
+      if (filter) params.status = filter;
       const response = await api.getLeaves(params);
       if ((response as any).success) {
         setLeaves((response as any).data || []);
       }
-    } catch (error) {
-      console.error('Failed to fetch leaves:', error);
+    } catch {
+      setError('Failed to load leaves');
     } finally {
       setLoading(false);
     }
   };
 
+  const showMsg = (type: 'success' | 'error', msg: string) => {
+    if (type === 'success') { setSuccess(msg); setTimeout(() => setSuccess(''), 3000); }
+    else { setError(msg); setTimeout(() => setError(''), 4000); }
+  };
+
   const handleApprove = async (id: string) => {
+    if (!window.confirm('Approve this leave request?')) return;
+    setActionLoading(id);
     try {
-      await api.approveLeave(id);
-      fetchLeaves();
-    } catch (error) {
-      console.error('Failed to approve leave:', error);
-    }
-  };
-
-  const handleReject = async (id: string) => {
-    const reason = prompt('Please enter rejection reason:');
-    if (reason) {
-      try {
-        await api.rejectLeave(id, reason);
+      const res = await api.approveLeave(id);
+      if ((res as any).success) {
+        showMsg('success', 'Leave approved successfully.');
         fetchLeaves();
-      } catch (error) {
-        console.error('Failed to reject leave:', error);
       }
+    } catch (e: any) {
+      showMsg('error', e.response?.data?.error || 'Failed to approve leave.');
+    } finally {
+      setActionLoading(null);
     }
   };
 
-  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target;
-
-    if (type === 'checkbox') {
-      const checked = (e.target as HTMLInputElement).checked;
-      setFormData(prev => ({
-        ...prev,
-        [name]: checked,
-        // If enabling half day, set end date same as start date
-        ...(name === 'isHalfDay' && checked ? { endDate: prev.startDate } : {})
-      }));
-    } else if (name === 'leaveType') {
-      // When changing leave type, reset dates appropriately
-      const minDate = value === 'SICK' ? getToday() : getTomorrow();
-      setFormData(prev => ({
-        ...prev,
-        [name]: value,
-        startDate: minDate,
-        endDate: minDate,
-      }));
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
-    }
-  };
-
-  const calculateDays = () => {
-    if (formData.startDate && formData.endDate) {
-      if (formData.isHalfDay) {
-        return 0.5;
+  const handleReject = async () => {
+    if (!showRejectModal || !rejectionReason.trim()) return;
+    setActionLoading(showRejectModal);
+    try {
+      const res = await api.rejectLeave(showRejectModal, rejectionReason.trim());
+      if ((res as any).success) {
+        showMsg('success', 'Leave rejected.');
+        setShowRejectModal(null);
+        setRejectionReason('');
+        fetchLeaves();
       }
-      const start = new Date(formData.startDate);
-      const end = new Date(formData.endDate);
-      const diffTime = Math.abs(end.getTime() - start.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-      return diffDays;
+    } catch (e: any) {
+      showMsg('error', e.response?.data?.error || 'Failed to reject leave.');
+    } finally {
+      setActionLoading(null);
     }
-    return 0;
   };
 
-  // Get minimum date based on leave type
-  const getMinDate = () => {
-    return formData.leaveType === 'SICK' ? getToday() : getTomorrow();
+  const handleCancel = async (id: string) => {
+    if (!window.confirm('Cancel this leave request?')) return;
+    setActionLoading(id);
+    try {
+      const res = await api.cancelLeave(id);
+      if ((res as any).success) {
+        showMsg('success', 'Leave cancelled.');
+        fetchLeaves();
+      }
+    } catch (e: any) {
+      showMsg('error', e.response?.data?.error || 'Failed to cancel leave.');
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const handleSubmitLeave = async (e: React.FormEvent) => {
+  const handleApplySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
     setSubmitting(true);
-
+    setError('');
     try {
-      const leaveData = {
-        leaveType: formData.leaveType,
-        startDate: formData.startDate,
-        endDate: formData.isHalfDay ? formData.startDate : formData.endDate,
-        reason: formData.reason,
-        totalDays: calculateDays(),
-        isHalfDay: formData.isHalfDay,
-        halfDayPeriod: formData.isHalfDay ? formData.halfDayPeriod : undefined,
-      };
-
-      let response;
-      if (editingLeave) {
-        response = await api.updateLeave(editingLeave.id, leaveData);
-      } else {
-        response = await api.applyLeave(leaveData);
-      }
-
-      if ((response as any).success) {
-        setSuccess(editingLeave ? 'Leave updated successfully!' : 'Leave application submitted successfully!');
-        setShowModal(false);
-        setEditingLeave(null);
-        setFormData({
-          leaveType: 'LOCAL',
-          startDate: getTomorrow(),
-          endDate: getTomorrow(),
-          reason: '',
-          isHalfDay: false,
-          halfDayPeriod: 'MORNING',
-        });
+      const res = await api.applyLeave(formData);
+      if ((res as any).success) {
+        showMsg('success', 'Leave application submitted!');
+        setShowApplyModal(false);
+        setFormData({ leaveType: 'LOCAL', startDate: getTomorrow(), endDate: getTomorrow(), reason: '', isHalfDay: false, halfDayPeriod: 'MORNING' });
         fetchLeaves();
-        // Refresh user data to update leave balance
-        if (!editingLeave) {
-          window.location.reload();
-        }
-      } else {
-        setError((response as any).error || `Failed to ${editingLeave ? 'update' : 'submit'} leave application`);
       }
-    } catch (err: any) {
-      setError(err.response?.data?.error || `Failed to ${editingLeave ? 'update' : 'submit'} leave application`);
+    } catch (e: any) {
+      setError(e.response?.data?.error || 'Failed to submit leave.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleEditLeave = (leave: Leave) => {
-    setEditingLeave(leave);
-    setFormData({
-      leaveType: leave.leaveType,
-      startDate: leave.startDate.split('T')[0],
-      endDate: leave.endDate.split('T')[0],
-      reason: leave.reason,
-      isHalfDay: false, // Will need to get from backend if stored
-      halfDayPeriod: 'MORNING',
-    });
-    setShowModal(true);
-  };
-
-  const handleCancelLeave = async (id: string, isApproved: boolean) => {
-    const confirmMessage = isApproved
-      ? 'Are you sure you want to cancel this approved leave? The leave balance will be restored.'
-      : 'Are you sure you want to cancel this leave request?';
-
-    if (!window.confirm(confirmMessage)) return;
-
-    try {
-      const response = await api.cancelLeave(id);
-      if ((response as any).success) {
-        setSuccess('Leave cancelled successfully!');
-        fetchLeaves();
-        if (isApproved) {
-          window.location.reload(); // Refresh to update balance
-        }
-      }
-    } catch (error: any) {
-      setError(error.response?.data?.message || 'Failed to cancel leave');
-    }
-  };
-
   const getStatusBadge = (status: string) => {
-    const styles: Record<string, string> = {
+    const map: Record<string, string> = {
       PENDING: 'bg-yellow-100 text-yellow-800',
       APPROVED: 'bg-green-100 text-green-800',
       REJECTED: 'bg-red-100 text-red-800',
+      CANCELLED: 'bg-gray-100 text-gray-600',
     };
-    return `px-2 py-1 text-xs font-medium rounded-full ${styles[status] || 'bg-gray-100 text-gray-800'}`;
+    return `px-2 py-0.5 text-xs font-medium rounded-full ${map[status] || 'bg-gray-100 text-gray-800'}`;
   };
-
-  const leaveBalance = formData.leaveType === 'LOCAL'
-    ? user?.employee?.localLeaveBalance
-    : user?.employee?.sickLeaveBalance;
-
-  // Filter leaves based on selected filter
-  const filteredLeaves = leaves.filter(leave => {
-    if (!filter) return true;
-    return leave.status === filter;
-  });
 
   if (loading) {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600" />
         </div>
       </Layout>
     );
@@ -252,47 +171,45 @@ const Leaves: React.FC = () => {
     <Layout>
       <div className="px-4 py-6">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Leave Management</h1>
+        <div className="flex flex-wrap gap-3 justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">
+            {isEmployer ? 'Leave Management' : 'My Leaves'}
+          </h1>
           {!isEmployer && (
             <button
-              onClick={() => setShowModal(true)}
-              className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+              onClick={() => setShowApplyModal(true)}
+              className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 text-sm font-medium"
             >
-              Apply for Leave
+              + Apply for Leave
             </button>
           )}
         </div>
 
-        {success && (
-          <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-md">
-            <p className="text-green-600">{success}</p>
-          </div>
-        )}
+        {success && <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md text-green-700 text-sm">{success}</div>}
+        {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">{error}</div>}
 
-        {/* Leave Balance Card - Only for employees */}
+        {/* Leave balance for employees */}
         {!isEmployer && user?.employee && (
-          <div className="bg-white shadow rounded-lg p-6 mb-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">My Leave Balance</h2>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-blue-50 rounded-lg p-4 text-center">
-                <p className="text-sm text-blue-600 font-medium">Annual Leave</p>
-                <p className="text-3xl font-bold text-blue-700">{user.employee.localLeaveBalance}</p>
-                <p className="text-xs text-blue-500">days available</p>
-              </div>
-              <div className="bg-orange-50 rounded-lg p-4 text-center">
-                <p className="text-sm text-orange-600 font-medium">Sick Leave</p>
-                <p className="text-3xl font-bold text-orange-700">{user.employee.sickLeaveBalance}</p>
-                <p className="text-xs text-orange-500">days available</p>
-              </div>
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="bg-blue-50 rounded-lg p-4 text-center">
+              <p className="text-xs font-medium text-blue-600 mb-1">Annual Leave</p>
+              <p className="text-3xl font-bold text-blue-700">{user.employee.localLeaveBalance}</p>
+              <p className="text-xs text-blue-500">days available</p>
+            </div>
+            <div className="bg-orange-50 rounded-lg p-4 text-center">
+              <p className="text-xs font-medium text-orange-600 mb-1">Sick Leave</p>
+              <p className="text-3xl font-bold text-orange-700">{user.employee.sickLeaveBalance}</p>
+              <p className="text-xs text-orange-500">days available</p>
             </div>
           </div>
         )}
 
-        {/* All Leaves Section */}
-        <div className="bg-white shadow rounded-lg p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-medium text-gray-900">My Leaves</h2>
+        {/* Leaves table */}
+        <div className="bg-white shadow rounded-lg p-4 sm:p-6">
+          <div className="flex flex-wrap gap-3 justify-between items-center mb-4">
+            <h2 className="text-lg font-medium text-gray-900">
+              {isEmployer ? 'All Leave Requests' : 'My Leave History'}
+            </h2>
             <select
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
@@ -305,75 +222,89 @@ const Leaves: React.FC = () => {
             </select>
           </div>
 
-          {filteredLeaves.length === 0 ? (
-            <div className="text-center text-gray-500 py-8">
-              No leaves found.
-            </div>
+          {leaves.length === 0 ? (
+            <div className="text-center text-gray-500 py-10">No leaves found.</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead className="bg-gray-50">
                   <tr>
-                    {isEmployer && <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>}
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Days</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Applied On</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    {isEmployer && <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>}
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">To</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredLeaves.map((leave) => (
+                  {leaves.map((leave) => (
                     <tr key={leave.id} className="hover:bg-gray-50">
                       {isEmployer && (
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                          {leave.employee?.firstName} {leave.employee?.lastName}
+                        <td className="px-3 py-3 whitespace-nowrap">
+                          <div className="font-medium text-gray-900">{leave.employee?.firstName} {leave.employee?.lastName}</div>
+                          <div className="text-xs text-gray-500">{leave.employee?.department}</div>
                         </td>
                       )}
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                        {leave.leaveType === 'LOCAL' ? 'Local' : 'Sick'}
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${leave.leaveType === 'LOCAL' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
+                          {leave.leaveType === 'LOCAL' ? 'Annual' : 'Sick'}
+                        </span>
+                        {leave.isUrgent && <span className="ml-1 px-1 py-0.5 bg-red-100 text-red-600 text-xs rounded">Urgent</span>}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(leave.startDate).toLocaleDateString()} - {new Date(leave.endDate).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {leave.totalDays}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td className="px-3 py-3 whitespace-nowrap text-gray-600">{new Date(leave.startDate).toLocaleDateString()}</td>
+                      <td className="px-3 py-3 whitespace-nowrap text-gray-600">{new Date(leave.endDate).toLocaleDateString()}</td>
+                      <td className="px-3 py-3 whitespace-nowrap text-gray-600">{leave.totalDays}</td>
+                      <td className="px-3 py-3 whitespace-nowrap">
                         <span className={getStatusBadge(leave.status)}>{leave.status}</span>
+                        {leave.status === 'REJECTED' && leave.rejectionReason && (
+                          <p className="text-xs text-red-500 mt-0.5 max-w-xs truncate" title={leave.rejectionReason}>{leave.rejectionReason}</p>
+                        )}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(leave.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm">
-                        <div className="flex gap-2">
-                          {!isEmployer && leave.status === 'PENDING' && (
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        <div className="flex flex-wrap gap-2">
+                          {/* Employer: approve/reject pending */}
+                          {isEmployer && leave.status === 'PENDING' && (
                             <>
                               <button
-                                onClick={() => handleEditLeave(leave)}
-                                className="text-primary-600 hover:text-primary-900 font-medium"
+                                onClick={() => handleApprove(leave.id)}
+                                disabled={actionLoading === leave.id}
+                                className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50"
                               >
-                                Edit
+                                {actionLoading === leave.id ? '...' : 'Approve'}
                               </button>
                               <button
-                                onClick={() => handleCancelLeave(leave.id, false)}
-                                className="text-red-600 hover:text-red-900 font-medium"
+                                onClick={() => { setShowRejectModal(leave.id); setRejectionReason(''); }}
+                                disabled={actionLoading === leave.id}
+                                className="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 disabled:opacity-50"
                               >
-                                Cancel
+                                Reject
                               </button>
                             </>
                           )}
+                          {/* Employer: cancel approved */}
                           {isEmployer && leave.status === 'APPROVED' && (
                             <button
-                              onClick={() => handleCancelLeave(leave.id, true)}
-                              className="text-red-600 hover:text-red-900 font-medium"
+                              onClick={() => handleCancel(leave.id)}
+                              disabled={actionLoading === leave.id}
+                              className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600 disabled:opacity-50"
                             >
                               Cancel
                             </button>
                           )}
-                          {!isEmployer && !isEmployer && leave.status === 'APPROVED' && (
-                            <span className="text-gray-400 text-xs">No actions</span>
+                          {/* Employee: cancel pending */}
+                          {!isEmployer && leave.status === 'PENDING' && (
+                            <button
+                              onClick={() => handleCancel(leave.id)}
+                              disabled={actionLoading === leave.id}
+                              className="px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 disabled:opacity-50"
+                            >
+                              Cancel
+                            </button>
+                          )}
+                          {!isEmployer && leave.status !== 'PENDING' && (
+                            <span className="text-xs text-gray-400">—</span>
                           )}
                         </div>
                       </td>
@@ -386,171 +317,129 @@ const Leaves: React.FC = () => {
         </div>
 
         {/* Apply Leave Modal */}
-        {showModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+        {showApplyModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
               <div className="p-6">
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold text-gray-900">{editingLeave ? 'Edit Leave Request' : 'Apply for Leave'}</h2>
-                  <button
-                    onClick={() => {
-                      setShowModal(false);
-                      setEditingLeave(null);
-                      setError('');
-                    }}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
+                  <h2 className="text-xl font-bold text-gray-900">Apply for Leave</h2>
+                  <button onClick={() => { setShowApplyModal(false); setError(''); }} className="text-gray-400 hover:text-gray-600">
                     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
                 </div>
 
-                {error && (
-                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-                    <p className="text-red-600 text-sm">{error}</p>
+                {error && <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded text-red-600 text-sm">{error}</div>}
+
+                <form onSubmit={handleApplySubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Leave Type</label>
+                    <select
+                      value={formData.leaveType}
+                      onChange={(e) => setFormData(prev => ({ ...prev, leaveType: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-md p-2 text-sm focus:border-primary-500 focus:ring-primary-500"
+                    >
+                      <option value="LOCAL">Annual Leave ({user?.employee?.localLeaveBalance || 0} days left)</option>
+                      <option value="SICK">Sick Leave ({user?.employee?.sickLeaveBalance || 0} days left)</option>
+                    </select>
                   </div>
-                )}
 
-                <form onSubmit={handleSubmitLeave}>
-                  <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="isHalfDay"
+                      checked={formData.isHalfDay}
+                      onChange={(e) => setFormData(prev => ({ ...prev, isHalfDay: e.target.checked }))}
+                      className="rounded border-gray-300"
+                    />
+                    <label htmlFor="isHalfDay" className="text-sm text-gray-700">Half day</label>
+                  </div>
+
+                  {formData.isHalfDay && (
+                    <select
+                      value={formData.halfDayPeriod}
+                      onChange={(e) => setFormData(prev => ({ ...prev, halfDayPeriod: e.target.value as 'MORNING' | 'AFTERNOON' }))}
+                      className="w-full border border-gray-300 rounded-md p-2 text-sm"
+                    >
+                      <option value="MORNING">Morning</option>
+                      <option value="AFTERNOON">Afternoon</option>
+                    </select>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Leave Type</label>
-                      <select
-                        name="leaveType"
-                        value={formData.leaveType}
-                        onChange={handleFormChange}
-                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
-                      >
-                        <option value="LOCAL">Local Leave ({user?.employee?.localLeaveBalance || 0} days available)</option>
-                        <option value="SICK">Sick Leave ({user?.employee?.sickLeaveBalance || 0} days available)</option>
-                      </select>
-                      <p className="mt-1 text-xs text-gray-500">
-                        {formData.leaveType === 'LOCAL'
-                          ? 'Local leave must be applied at least 1 day in advance'
-                          : 'Sick leave can be applied for today'}
-                      </p>
-                    </div>
-
-                    {/* Half Day Option */}
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <label className="flex items-center">
-                        <input
-                          type="checkbox"
-                          name="isHalfDay"
-                          checked={formData.isHalfDay}
-                          onChange={handleFormChange}
-                          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                        />
-                        <span className="ml-2 text-sm font-medium text-gray-700">Half Day Leave</span>
-                      </label>
-
-                      {formData.isHalfDay && (
-                        <div className="mt-3 flex gap-4">
-                          <label className="flex items-center">
-                            <input
-                              type="radio"
-                              name="halfDayPeriod"
-                              value="MORNING"
-                              checked={formData.halfDayPeriod === 'MORNING'}
-                              onChange={handleFormChange}
-                              className="border-gray-300 text-primary-600 focus:ring-primary-500"
-                            />
-                            <span className="ml-2 text-sm text-gray-700">Morning (First Half)</span>
-                          </label>
-                          <label className="flex items-center">
-                            <input
-                              type="radio"
-                              name="halfDayPeriod"
-                              value="AFTERNOON"
-                              checked={formData.halfDayPeriod === 'AFTERNOON'}
-                              onChange={handleFormChange}
-                              className="border-gray-300 text-primary-600 focus:ring-primary-500"
-                            />
-                            <span className="ml-2 text-sm text-gray-700">Afternoon (Second Half)</span>
-                          </label>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className={formData.isHalfDay ? '' : 'grid grid-cols-2 gap-4'}>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          {formData.isHalfDay ? 'Date' : 'Start Date'}
-                        </label>
-                        <input
-                          type="date"
-                          name="startDate"
-                          value={formData.startDate}
-                          onChange={handleFormChange}
-                          required
-                          min={getMinDate()}
-                          className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
-                        />
-                      </div>
-                      {!formData.isHalfDay && (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                          <input
-                            type="date"
-                            name="endDate"
-                            value={formData.endDate}
-                            onChange={handleFormChange}
-                            required
-                            min={formData.startDate || getMinDate()}
-                            className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    {calculateDays() > 0 && (
-                      <div className={`p-3 rounded-md ${leaveBalance !== undefined && calculateDays() > leaveBalance ? 'bg-red-50' : 'bg-blue-50'}`}>
-                        <p className={`text-sm ${leaveBalance !== undefined && calculateDays() > leaveBalance ? 'text-red-700' : 'text-blue-700'}`}>
-                          Total Days: <strong>{calculateDays()}</strong>
-                          {leaveBalance !== undefined && calculateDays() > leaveBalance && (
-                            <span className="block mt-1">
-                              Exceeds available balance of {leaveBalance} days
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                    )}
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
-                      <textarea
-                        name="reason"
-                        rows={3}
-                        value={formData.reason}
-                        onChange={handleFormChange}
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                      <input
+                        type="date"
+                        value={formData.startDate}
+                        onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
                         required
-                        placeholder="Please provide a reason for your leave request..."
-                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
+                        className="w-full border border-gray-300 rounded-md p-2 text-sm"
                       />
                     </div>
-
-                    <div className="flex justify-end space-x-3 pt-4">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowModal(false);
-                          setError('');
-                        }}
-                        className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={submitting || (leaveBalance !== undefined && calculateDays() > leaveBalance)}
-                        className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {submitting ? 'Submitting...' : 'Submit Application'}
-                      </button>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                      <input
+                        type="date"
+                        value={formData.endDate}
+                        onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
+                        required
+                        className="w-full border border-gray-300 rounded-md p-2 text-sm"
+                      />
                     </div>
                   </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+                    <textarea
+                      value={formData.reason}
+                      onChange={(e) => setFormData(prev => ({ ...prev, reason: e.target.value }))}
+                      required
+                      rows={3}
+                      className="w-full border border-gray-300 rounded-md p-2 text-sm"
+                      placeholder="Please provide a reason for the leave..."
+                    />
+                  </div>
+
+                  <div className="flex gap-3 justify-end">
+                    <button type="button" onClick={() => { setShowApplyModal(false); setError(''); }} className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50">
+                      Cancel
+                    </button>
+                    <button type="submit" disabled={submitting} className="px-4 py-2 bg-primary-600 text-white rounded-md text-sm hover:bg-primary-700 disabled:opacity-50">
+                      {submitting ? 'Submitting...' : 'Submit'}
+                    </button>
+                  </div>
                 </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Reject Modal */}
+        {showRejectModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-3">Reject Leave Request</h3>
+              <p className="text-sm text-gray-600 mb-3">Please provide a reason for rejection:</p>
+              <textarea
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                rows={3}
+                className="w-full border border-gray-300 rounded-md p-2 text-sm mb-4"
+                placeholder="Reason for rejection..."
+              />
+              <div className="flex gap-3 justify-end">
+                <button onClick={() => { setShowRejectModal(null); setRejectionReason(''); }} className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50">
+                  Cancel
+                </button>
+                <button
+                  onClick={handleReject}
+                  disabled={!rejectionReason.trim() || actionLoading !== null}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 disabled:opacity-50"
+                >
+                  {actionLoading ? 'Rejecting...' : 'Reject Leave'}
+                </button>
               </div>
             </div>
           </div>

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { body } from 'express-validator';
-import { login, register, getMe, changePassword } from '../controllers/authController';
+import { login, register, getMe, changePassword, updateEmailNotifications } from '../controllers/authController';
 import { authenticate } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 
@@ -40,5 +40,7 @@ router.post(
   ]),
   changePassword
 );
+
+router.put('/email-notifications', authenticate, updateEmailNotifications);
 
 export default router;

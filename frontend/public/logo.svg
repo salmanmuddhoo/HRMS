@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+  <!-- Golden laurel wreath left -->
+  <g fill="#C9A227" transform="translate(20,80)">
+    <ellipse cx="15" cy="0" rx="7" ry="3" transform="rotate(-60 15 0)"/>
+    <ellipse cx="10" cy="15" rx="7" ry="3" transform="rotate(-50 10 15)"/>
+    <ellipse cx="8" cy="30" rx="7" ry="3" transform="rotate(-40 8 30)"/>
+    <ellipse cx="8" cy="45" rx="7" ry="3" transform="rotate(-30 8 45)"/>
+    <ellipse cx="10" cy="60" rx="7" ry="3" transform="rotate(-20 10 60)"/>
+    <ellipse cx="15" cy="74" rx="7" ry="3" transform="rotate(-10 15 74)"/>
+    <ellipse cx="22" cy="86" rx="7" ry="3" transform="rotate(0 22 86)"/>
+    <!-- stems -->
+    <path d="M22 0 Q16 44 22 88" stroke="#C9A227" stroke-width="2" fill="none"/>
+  </g>
+  <!-- Golden laurel wreath right -->
+  <g fill="#C9A227" transform="translate(280,80) scale(-1,1)">
+    <ellipse cx="15" cy="0" rx="7" ry="3" transform="rotate(-60 15 0)"/>
+    <ellipse cx="10" cy="15" rx="7" ry="3" transform="rotate(-50 10 15)"/>
+    <ellipse cx="8" cy="30" rx="7" ry="3" transform="rotate(-40 8 30)"/>
+    <ellipse cx="8" cy="45" rx="7" ry="3" transform="rotate(-30 8 45)"/>
+    <ellipse cx="10" cy="60" rx="7" ry="3" transform="rotate(-20 10 60)"/>
+    <ellipse cx="15" cy="74" rx="7" ry="3" transform="rotate(-10 15 74)"/>
+    <ellipse cx="22" cy="86" rx="7" ry="3" transform="rotate(0 22 86)"/>
+    <path d="M22 0 Q16 44 22 88" stroke="#C9A227" stroke-width="2" fill="none"/>
+  </g>
+
+  <!-- Green crescent moon -->
+  <circle cx="150" cy="165" r="80" fill="#1a7a3a"/>
+  <circle cx="175" cy="148" r="70" fill="white"/>
+
+  <!-- Corn cob -->
+  <!-- Green leaves -->
+  <ellipse cx="130" cy="90" rx="18" ry="8" fill="#2d9e4e" transform="rotate(-30 130 90)"/>
+  <ellipse cx="170" cy="90" rx="18" ry="8" fill="#2d9e4e" transform="rotate(30 170 90)"/>
+  <!-- Corn kernels body -->
+  <rect x="140" y="48" width="20" height="50" rx="10" fill="#F5C518"/>
+  <!-- Kernel rows -->
+  <circle cx="145" cy="58" r="3" fill="#E6B800"/>
+  <circle cx="152" cy="58" r="3" fill="#E6B800"/>
+  <circle cx="145" cy="66" r="3" fill="#E6B800"/>
+  <circle cx="152" cy="66" r="3" fill="#E6B800"/>
+  <circle cx="145" cy="74" r="3" fill="#E6B800"/>
+  <circle cx="152" cy="74" r="3" fill="#E6B800"/>
+  <circle cx="145" cy="82" r="3" fill="#E6B800"/>
+  <circle cx="152" cy="82" r="3" fill="#E6B800"/>
+  <circle cx="148.5" cy="54" r="2.5" fill="#FFD700"/>
+  <circle cx="148.5" cy="62" r="2.5" fill="#FFD700"/>
+  <circle cx="148.5" cy="70" r="2.5" fill="#FFD700"/>
+  <circle cx="148.5" cy="78" r="2.5" fill="#FFD700"/>
+  <circle cx="148.5" cy="86" r="2.5" fill="#FFD700"/>
+
+  <!-- Al Barakah text -->
+  <text x="150" y="175" text-anchor="middle" font-family="Georgia, serif" font-size="32" font-weight="bold" fill="#1a7a3a">Al Barakah</text>
+  <!-- MCSL text -->
+  <text x="150" y="205" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" font-weight="bold" fill="#1a7a3a" letter-spacing="3">MCSL</text>
+
+  <!-- Since 1998 banner -->
+  <rect x="70" y="228" width="160" height="26" rx="13" fill="none" stroke="#C9A227" stroke-width="2"/>
+  <text x="150" y="246" text-anchor="middle" font-family="Georgia, serif" font-size="14" fill="#C9A227">&#x2022; Since 1998 &#x2022;</text>
+</svg>

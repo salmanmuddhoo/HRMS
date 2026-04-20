@@ -3,7 +3,6 @@ import { AuthRequest } from '../middleware/auth';
 import prisma from '../config/database';
 import { sendSuccess, sendError } from '../utils/response';
 import { getMonthDateRange } from '../utils/date';
-import { PayrollStatus } from '@prisma/client';
 
 export const getAllPayrolls = async (req: AuthRequest, res: Response) => {
   try {
@@ -45,13 +44,6 @@ export const getAllPayrolls = async (req: AuthRequest, res: Response) => {
             lastName: true,
             department: true,
             jobTitle: true,
-          },
-        },
-        payslip: {
-          select: {
-            id: true,
-            generatedAt: true,
-            downloadedAt: true,
           },
         },
       },
@@ -199,7 +191,7 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
         totalDeductions,
         grossSalary,
         netSalary,
-        status: PayrollStatus.DRAFT,
+        status: 'DRAFT' as const,
       });
     }
 

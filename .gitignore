@@ -8,7 +8,7 @@ node_modules/
 
 # Production
 build/
-/dist
+dist/
 
 # Environment variables
 .env
@@ -49,9 +49,3 @@ temp/
 
 # Build files
 *.tsbuildinfo
-
-# Claude Code
-.claude/
-
-# Windows artifacts
-nul

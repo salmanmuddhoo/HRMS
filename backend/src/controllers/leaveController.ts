@@ -109,7 +109,7 @@ export const getLeaveById = async (req: AuthRequest, res: Response) => {
 
 export const applyLeave = async (req: AuthRequest, res: Response) => {
   try {
-    const { leaveType, startDate, endDate, reason, attachment, isHalfDay, halfDayPeriod, totalDays: requestedTotalDays } = req.body;
+    const { leaveType, startDate, endDate, reason, attachment } = req.body;
 
     // Get employee record
     const employee = await prisma.employee.findUnique({
@@ -124,29 +124,10 @@ export const applyLeave = async (req: AuthRequest, res: Response) => {
       return sendError(res, 'Cannot apply leave - account not active', 403);
     }
 
+    // Calculate total days
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    start.setHours(0, 0, 0, 0);
-
-    // Validate date based on leave type
-    if (leaveType === 'LOCAL') {
-      // Local leave cannot be applied for the same day
-      if (start.getTime() <= today.getTime()) {
-        return sendError(res, 'Local leave must be applied at least 1 day in advance', 400);
-      }
-    }
-
-    // Calculate total days
-    let totalDays: number;
-    if (isHalfDay) {
-      totalDays = 0.5;
-    } else if (requestedTotalDays) {
-      totalDays = parseFloat(requestedTotalDays);
-    } else {
-      totalDays = calculateDaysBetween(start, end);
-    }
+    const totalDays = calculateDaysBetween(start, end);
 
     // Check leave balance
     if (leaveType === 'LOCAL' && employee.localLeaveBalance < totalDays) {
@@ -165,7 +146,7 @@ export const applyLeave = async (req: AuthRequest, res: Response) => {
       );
     }
 
-    // Check for overlapping leaves (with half-day consideration)
+    // Check for overlapping leaves
     const overlappingLeave = await prisma.leave.findFirst({
       where: {
         employeeId: employee.id,
@@ -180,15 +161,7 @@ export const applyLeave = async (req: AuthRequest, res: Response) => {
     });
 
     if (overlappingLeave) {
-      // Allow if both are half days on the same day but different periods
-      const isSameDay = overlappingLeave.startDate.getTime() === start.getTime() &&
-                        overlappingLeave.endDate.getTime() === end.getTime();
-      const bothHalfDay = overlappingLeave.isHalfDay && isHalfDay;
-      const differentPeriods = overlappingLeave.halfDayPeriod !== halfDayPeriod;
-
-      if (!(isSameDay && bothHalfDay && differentPeriods)) {
-        return sendError(res, 'You have an overlapping leave request', 400);
-      }
+      return sendError(res, 'You have an overlapping leave request', 400);
     }
 
     // Create leave application
@@ -197,13 +170,11 @@ export const applyLeave = async (req: AuthRequest, res: Response) => {
         employeeId: employee.id,
         leaveType,
         startDate: start,
-        endDate: isHalfDay ? start : end,
+        endDate: end,
         totalDays,
         reason,
         attachment,
         status: 'PENDING',
-        isHalfDay: isHalfDay || false,
-        halfDayPeriod: isHalfDay ? halfDayPeriod : null,
       },
       include: {
         employee: {
@@ -218,32 +189,21 @@ export const applyLeave = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // Send email notification to all admins and employers
-    try {
-      const adminUsers = await prisma.user.findMany({
-        where: {
-          role: { in: ['ADMIN', 'EMPLOYER'] },
-        },
-        select: {
-          email: true,
-        },
-      });
-
-      const adminEmails = adminUsers.map(u => u.email);
-      if (adminEmails.length > 0) {
-        await emailService.sendLeaveApprovalNotification(
-          adminEmails,
-          `${employee.firstName} ${employee.lastName}`,
-          leaveType,
-          start.toISOString(),
-          (isHalfDay ? start : end).toISOString(),
-          totalDays,
-          reason || ''
-        );
-      }
-    } catch (emailError) {
-      console.error('Failed to send email notification:', emailError);
-      // Don't fail the request if email fails
+    // Send email notification to admins/employers who have notifications enabled
+    const managers = await prisma.user.findMany({
+      where: { role: { in: ['ADMIN', 'EMPLOYER'] }, emailNotifications: true },
+      select: { email: true },
+    });
+    if (managers.length > 0) {
+      emailService.sendLeaveRequestNotification({
+        to: managers.map((m) => m.email),
+        employeeName: `${employee.firstName} ${employee.lastName}`,
+        leaveType,
+        startDate: start.toLocaleDateString(),
+        endDate: end.toLocaleDateString(),
+        totalDays,
+        reason,
+      }).catch(() => {});
     }
 
     return sendSuccess(res, leave, 'Leave application submitted successfully', 201);
@@ -259,7 +219,14 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
 
     const leave = await prisma.leave.findUnique({
       where: { id },
-      include: { employee: true },
+      include: {
+        employee: {
+          select: {
+            id: true, employeeId: true, firstName: true, lastName: true,
+            department: true, email: true, userId: true,
+          },
+        },
+      },
     });
 
     if (!leave) {
@@ -315,58 +282,25 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
       }
 
       // Create attendance records
-      if (leave.isHalfDay) {
-        // For half-day leave, upsert single record
-        await tx.attendance.upsert({
-          where: {
-            employeeId_date: {
-              employeeId: leave.employeeId,
-              date: leave.startDate,
-            },
-          },
-          update: {
-            isPresent: false,
-            isLeave: true,
-            leaveType: leave.leaveType,
-            isHalfDay: true,
-            halfDayPeriod: leave.halfDayPeriod,
-            isAbsence: false,
-          },
-          create: {
-            employeeId: leave.employeeId,
-            date: leave.startDate,
-            isPresent: false,
-            isLeave: true,
-            leaveType: leave.leaveType,
-            isHalfDay: true,
-            halfDayPeriod: leave.halfDayPeriod,
-            isAbsence: false,
-          },
-        });
-      } else {
-        // For full-day leave, create records for each day
-        const current = new Date(leave.startDate);
-        const attendanceRecords = [];
+      const current = new Date(leave.startDate);
+      const attendanceRecords = [];
 
-        while (current <= leave.endDate) {
-          attendanceRecords.push({
-            employeeId: leave.employeeId,
-            date: new Date(current),
-            isPresent: false,
-            isLeave: true,
-            leaveType: leave.leaveType,
-            isHalfDay: false,
-            halfDayPeriod: null,
-            isAbsence: false,
-          });
-          current.setDate(current.getDate() + 1);
-        }
-
-        await tx.attendance.createMany({
-          data: attendanceRecords,
-          skipDuplicates: true,
+      while (current <= leave.endDate) {
+        attendanceRecords.push({
+          employeeId: leave.employeeId,
+          date: new Date(current),
+          isPresent: false,
+          isLeave: true,
+          leaveType: leave.leaveType,
+          isAbsence: false,
         });
+        current.setDate(current.getDate() + 1);
       }
+
+      await tx.attendance.createMany({
+        data: attendanceRecords,
+        skipDuplicates: true,
+      });
 
       return approved;
     });
@@ -382,32 +316,17 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // Send email notification to employee
-    try {
-      const employeeUser = await prisma.user.findFirst({
-        where: {
-          employee: {
-            id: leave.employeeId,
-          },
-        },
-        select: {
-          email: true,
-        },
-      });
-
-      if (employeeUser) {
-        await emailService.sendLeaveStatusNotification(
-          employeeUser.email,
-          `${leave.employee.firstName} ${leave.employee.lastName}`,
-          leave.leaveType,
-          leave.startDate.toISOString(),
-          leave.endDate.toISOString(),
-          'APPROVED'
-        );
-      }
-    } catch (emailError) {
-      console.error('Failed to send approval email notification:', emailError);
-      // Don't fail the request if email fails
+    // Notify employee
+    const empUser = await prisma.user.findUnique({ where: { id: leave.employee.userId } });
+    if (empUser?.emailNotifications) {
+      emailService.sendLeaveStatusNotification({
+        to: leave.employee.email,
+        employeeName: `${leave.employee.firstName} ${leave.employee.lastName}`,
+        leaveType: leave.leaveType,
+        startDate: leave.startDate.toLocaleDateString(),
+        endDate: leave.endDate.toLocaleDateString(),
+        status: 'APPROVED',
+      }).catch(() => {});
     }
 
     return sendSuccess(res, updatedLeave, 'Leave approved successfully');
@@ -424,6 +343,11 @@ export const rejectLeave = async (req: AuthRequest, res: Response) => {
 
     const leave = await prisma.leave.findUnique({
       where: { id },
+      include: {
+        employee: {
+          select: { id: true, firstName: true, lastName: true, email: true, userId: true },
+        },
+      },
     });
 
     if (!leave) {
@@ -444,13 +368,7 @@ export const rejectLeave = async (req: AuthRequest, res: Response) => {
       },
       include: {
         employee: {
-          select: {
-            id: true,
-            employeeId: true,
-            firstName: true,
-            lastName: true,
-            department: true,
-          },
+          select: { id: true, employeeId: true, firstName: true, lastName: true, department: true },
         },
       },
     });
@@ -466,33 +384,20 @@ export const rejectLeave = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // Send email notification to employee
-    try {
-      const employeeUser = await prisma.user.findFirst({
-        where: {
-          employee: {
-            id: leave.employeeId,
-          },
-        },
-        select: {
-          email: true,
-        },
-      });
-
-      if (employeeUser) {
-        await emailService.sendLeaveStatusNotification(
-          employeeUser.email,
-          `${updatedLeave.employee.firstName} ${updatedLeave.employee.lastName}`,
-          leave.leaveType,
-          leave.startDate.toISOString(),
-          leave.endDate.toISOString(),
-          'REJECTED',
-          rejectionReason
-        );
+    // Notify employee
+    if (leave.employee) {
+      const empUser = await prisma.user.findUnique({ where: { id: leave.employee.userId } });
+      if (empUser?.emailNotifications) {
+        emailService.sendLeaveStatusNotification({
+          to: leave.employee.email,
+          employeeName: `${leave.employee.firstName} ${leave.employee.lastName}`,
+          leaveType: leave.leaveType,
+          startDate: leave.startDate.toLocaleDateString(),
+          endDate: leave.endDate.toLocaleDateString(),
+          status: 'REJECTED',
+          rejectionReason,
+        }).catch(() => {});
       }
-    } catch (emailError) {
-      console.error('Failed to send rejection email notification:', emailError);
-      // Don't fail the request if email fails
     }
 
     return sendSuccess(res, updatedLeave, 'Leave rejected successfully');
@@ -504,7 +409,7 @@ export const rejectLeave = async (req: AuthRequest, res: Response) => {
 
 export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
   try {
-    const { employeeId, leaveType, startDate, endDate, reason, isHalfDay, halfDayPeriod } = req.body;
+    const { employeeId, leaveType, startDate, endDate, reason } = req.body;
 
     const employee = await prisma.employee.findUnique({
       where: { id: employeeId },
@@ -516,15 +421,7 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
 
     const start = new Date(startDate);
     const end = new Date(endDate);
-
-    // Calculate total days - 0.5 for half day
-    const totalDays = isHalfDay ? 0.5 : calculateDaysBetween(start, end);
-
-    // Check leave balance
-    const currentBalance = leaveType === 'LOCAL' ? employee.localLeaveBalance : employee.sickLeaveBalance;
-    if (currentBalance < totalDays) {
-      return sendError(res, `Insufficient ${leaveType === 'LOCAL' ? 'annual' : 'sick'} leave balance`, 400);
-    }
+    const totalDays = calculateDaysBetween(start, end);
 
     // Create urgent leave (auto-approved)
     const leave = await prisma.$transaction(async (tx) => {
@@ -533,13 +430,11 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
           employeeId,
           leaveType,
           startDate: start,
-          endDate: isHalfDay ? start : end,
+          endDate: end,
           totalDays,
           reason,
           status: 'APPROVED',
           isUrgent: true,
-          isHalfDay: isHalfDay || false,
-          halfDayPeriod: isHalfDay ? halfDayPeriod : null,
           approvedBy: req.user!.userId,
           approvedAt: new Date(),
         },
@@ -577,57 +472,26 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
         });
       }
 
-      // Create attendance record (only one for half-day or loop for full days)
-      if (isHalfDay) {
-        await tx.attendance.upsert({
-          where: {
-            employeeId_date: {
-              employeeId,
-              date: start,
-            },
-          },
-          update: {
-            isPresent: false,
-            isLeave: true,
-            leaveType,
-            isHalfDay: true,
-            halfDayPeriod,
-            isAbsence: false,
-          },
-          create: {
-            employeeId,
-            date: start,
-            isPresent: false,
-            isLeave: true,
-            leaveType,
-            isHalfDay: true,
-            halfDayPeriod,
-            isAbsence: false,
-          },
-        });
-      } else {
-        const current = new Date(start);
-        const attendanceRecords = [];
+      // Create attendance records
+      const current = new Date(start);
+      const attendanceRecords = [];
 
-        while (current <= end) {
-          attendanceRecords.push({
-            employeeId,
-            date: new Date(current),
-            isPresent: false,
-            isLeave: true,
-            leaveType,
-            isHalfDay: false,
-            halfDayPeriod: null,
-            isAbsence: false,
-          });
-          current.setDate(current.getDate() + 1);
-        }
-
-        await tx.attendance.createMany({
-          data: attendanceRecords,
-          skipDuplicates: true,
+      while (current <= end) {
+        attendanceRecords.push({
+          employeeId,
+          date: new Date(current),
+          isPresent: false,
+          isLeave: true,
+          leaveType,
+          isAbsence: false,
         });
+        current.setDate(current.getDate() + 1);
       }
+
+      await tx.attendance.createMany({
+        data: attendanceRecords,
+        skipDuplicates: true,
+      });
 
       return urgentLeave;
     });
@@ -647,130 +511,6 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
   } catch (error: any) {
     console.error('Add urgent leave error:', error);
     return sendError(res, 'Failed to add urgent leave', 500);
-  }
-};
-
-export const updateLeave = async (req: AuthRequest, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { leaveType, startDate, endDate, reason, isHalfDay, halfDayPeriod } = req.body;
-
-    const leave = await prisma.leave.findUnique({
-      where: { id },
-      include: { employee: true },
-    });
-
-    if (!leave) {
-      return sendError(res, 'Leave not found', 404);
-    }
-
-    // Only allow editing pending leaves
-    if (leave.status !== 'PENDING') {
-      return sendError(res, 'Only pending leaves can be edited', 400);
-    }
-
-    // Check if employee owns this leave
-    const employee = await prisma.employee.findUnique({
-      where: { userId: req.user!.userId },
-    });
-
-    if (!employee || leave.employeeId !== employee.id) {
-      return sendError(res, 'Unauthorized to edit this leave', 403);
-    }
-
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    start.setHours(0, 0, 0, 0);
-
-    // Validate date based on leave type
-    if (leaveType === 'LOCAL') {
-      if (start.getTime() <= today.getTime()) {
-        return sendError(res, 'Local leave must be applied at least 1 day in advance', 400);
-      }
-    }
-
-    // Calculate total days
-    let totalDays: number;
-    if (isHalfDay) {
-      totalDays = 0.5;
-    } else {
-      totalDays = calculateDaysBetween(start, end);
-    }
-
-    // Check leave balance
-    if (leaveType === 'LOCAL' && employee.localLeaveBalance < totalDays) {
-      return sendError(
-        res,
-        `Insufficient local leave balance. Available: ${employee.localLeaveBalance} days`,
-        400
-      );
-    }
-
-    if (leaveType === 'SICK' && employee.sickLeaveBalance < totalDays) {
-      return sendError(
-        res,
-        `Insufficient sick leave balance. Available: ${employee.sickLeaveBalance} days`,
-        400
-      );
-    }
-
-    // Check for overlapping leaves (excluding current leave)
-    const overlappingLeave = await prisma.leave.findFirst({
-      where: {
-        id: { not: id },
-        employeeId: employee.id,
-        status: { in: ['PENDING', 'APPROVED'] },
-        OR: [
-          {
-            startDate: { lte: end },
-            endDate: { gte: start },
-          },
-        ],
-      },
-    });
-
-    if (overlappingLeave) {
-      const isSameDay = overlappingLeave.startDate.getTime() === start.getTime() &&
-                        overlappingLeave.endDate.getTime() === end.getTime();
-      const bothHalfDay = overlappingLeave.isHalfDay && isHalfDay;
-      const differentPeriods = overlappingLeave.halfDayPeriod !== halfDayPeriod;
-
-      if (!(isSameDay && bothHalfDay && differentPeriods)) {
-        return sendError(res, 'You have an overlapping leave request', 400);
-      }
-    }
-
-    // Update leave
-    const updatedLeave = await prisma.leave.update({
-      where: { id },
-      data: {
-        leaveType,
-        startDate: start,
-        endDate: isHalfDay ? start : end,
-        totalDays,
-        reason,
-        isHalfDay: isHalfDay || false,
-        halfDayPeriod: isHalfDay ? halfDayPeriod : null,
-      },
-      include: {
-        employee: {
-          select: {
-            id: true,
-            employeeId: true,
-            firstName: true,
-            lastName: true,
-            department: true,
-          },
-        },
-      },
-    });
-
-    return sendSuccess(res, updatedLeave, 'Leave updated successfully');
-  } catch (error: any) {
-    console.error('Update leave error:', error);
-    return sendError(res, 'Failed to update leave', 500);
   }
 };
 

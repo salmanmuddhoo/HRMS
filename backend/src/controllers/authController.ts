@@ -192,3 +192,22 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
     return sendError(res, 'Failed to change password', 500);
   }
 };
+
+export const updateEmailNotifications = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+    const { emailNotifications } = req.body;
+
+    const user = await prisma.user.update({
+      where: { id: req.user.userId },
+      data: { emailNotifications: Boolean(emailNotifications) },
+      select: { id: true, email: true, role: true, emailNotifications: true },
+    });
+
+    return sendSuccess(res, user, 'Notification preference updated');
+  } catch (error: any) {
+    console.error('Update email notifications error:', error);
+    return sendError(res, 'Failed to update preference', 500);
+  }
+};

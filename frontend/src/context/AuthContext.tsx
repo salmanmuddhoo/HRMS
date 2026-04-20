@@ -36,7 +36,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const token = localStorage.getItem('token');
       if (token) {
         try {
-          const response: ApiResponse<User> = await api.getMe();
+          const response = await api.getMe() as ApiResponse<User>;
           if (response.success && response.data) {
             setUser(response.data);
           } else {
@@ -54,10 +54,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = async (email: string, password: string) => {
-    const response: ApiResponse<{ token: string; user: User }> = await api.login(
-      email,
-      password
-    );
+    const response = await api.login(email, password) as ApiResponse<{ token: string; user: User }>;
 
     if (response.success && response.data) {
       localStorage.setItem('token', response.data.token);

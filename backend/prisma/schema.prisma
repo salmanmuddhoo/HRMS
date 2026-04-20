@@ -39,13 +39,14 @@ enum PayrollStatus {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  role      Role     @default(EMPLOYEE)
-  employee  Employee?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                  String    @id @default(uuid())
+  email               String    @unique
+  password            String
+  role                Role      @default(EMPLOYEE)
+  emailNotifications  Boolean   @default(true)
+  employee            Employee?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@map("users")
 }

@@ -86,11 +86,23 @@ class ApiService {
   }
 
   async deactivateEmployee(id: string) {
+    return this.request({ method: 'PATCH', url: `/employees/${id}/deactivate` });
+  }
+
+  async deleteEmployee(id: string) {
     return this.request({ method: 'DELETE', url: `/employees/${id}` });
+  }
+
+  async resetEmployeePassword(id: string, newPassword: string) {
+    return this.request({ method: 'POST', url: `/employees/${id}/reset-password`, data: { newPassword } });
   }
 
   async getEmployeeStats() {
     return this.request({ method: 'GET', url: '/employees/stats' });
+  }
+
+  async updateEmailNotifications(emailNotifications: boolean) {
+    return this.request({ method: 'PUT', url: '/auth/email-notifications', data: { emailNotifications } });
   }
 
   // Leaves

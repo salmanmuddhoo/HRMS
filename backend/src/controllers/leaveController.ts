@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/auth';
 import prisma from '../config/database';
 import { sendSuccess, sendError } from '../utils/response';
 import { calculateDaysBetween } from '../utils/date';
+import emailService from '../services/emailService';
 
 export const getAllLeaves = async (req: AuthRequest, res: Response) => {
   try {
@@ -188,6 +189,23 @@ export const applyLeave = async (req: AuthRequest, res: Response) => {
       },
     });
 
+    // Send email notification to admins/employers who have notifications enabled
+    const managers = await prisma.user.findMany({
+      where: { role: { in: ['ADMIN', 'EMPLOYER'] }, emailNotifications: true },
+      select: { email: true },
+    });
+    if (managers.length > 0) {
+      emailService.sendLeaveRequestNotification({
+        to: managers.map((m) => m.email),
+        employeeName: `${employee.firstName} ${employee.lastName}`,
+        leaveType,
+        startDate: start.toLocaleDateString(),
+        endDate: end.toLocaleDateString(),
+        totalDays,
+        reason,
+      }).catch(() => {});
+    }
+
     return sendSuccess(res, leave, 'Leave application submitted successfully', 201);
   } catch (error: any) {
     console.error('Apply leave error:', error);
@@ -201,7 +219,14 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
 
     const leave = await prisma.leave.findUnique({
       where: { id },
-      include: { employee: true },
+      include: {
+        employee: {
+          select: {
+            id: true, employeeId: true, firstName: true, lastName: true,
+            department: true, email: true, userId: true,
+          },
+        },
+      },
     });
 
     if (!leave) {
@@ -291,6 +316,19 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
       },
     });
 
+    // Notify employee
+    const empUser = await prisma.user.findUnique({ where: { id: leave.employee.userId } });
+    if (empUser?.emailNotifications) {
+      emailService.sendLeaveStatusNotification({
+        to: leave.employee.email,
+        employeeName: `${leave.employee.firstName} ${leave.employee.lastName}`,
+        leaveType: leave.leaveType,
+        startDate: leave.startDate.toLocaleDateString(),
+        endDate: leave.endDate.toLocaleDateString(),
+        status: 'APPROVED',
+      }).catch(() => {});
+    }
+
     return sendSuccess(res, updatedLeave, 'Leave approved successfully');
   } catch (error: any) {
     console.error('Approve leave error:', error);
@@ -305,6 +343,11 @@ export const rejectLeave = async (req: AuthRequest, res: Response) => {
 
     const leave = await prisma.leave.findUnique({
       where: { id },
+      include: {
+        employee: {
+          select: { id: true, firstName: true, lastName: true, email: true, userId: true },
+        },
+      },
     });
 
     if (!leave) {
@@ -325,13 +368,7 @@ export const rejectLeave = async (req: AuthRequest, res: Response) => {
       },
       include: {
         employee: {
-          select: {
-            id: true,
-            employeeId: true,
-            firstName: true,
-            lastName: true,
-            department: true,
-          },
+          select: { id: true, employeeId: true, firstName: true, lastName: true, department: true },
         },
       },
     });
@@ -346,6 +383,22 @@ export const rejectLeave = async (req: AuthRequest, res: Response) => {
         changes: JSON.stringify({ leave: updatedLeave }),
       },
     });
+
+    // Notify employee
+    if (leave.employee) {
+      const empUser = await prisma.user.findUnique({ where: { id: leave.employee.userId } });
+      if (empUser?.emailNotifications) {
+        emailService.sendLeaveStatusNotification({
+          to: leave.employee.email,
+          employeeName: `${leave.employee.firstName} ${leave.employee.lastName}`,
+          leaveType: leave.leaveType,
+          startDate: leave.startDate.toLocaleDateString(),
+          endDate: leave.endDate.toLocaleDateString(),
+          status: 'REJECTED',
+          rejectionReason,
+        }).catch(() => {});
+      }
+    }
 
     return sendSuccess(res, updatedLeave, 'Leave rejected successfully');
   } catch (error: any) {

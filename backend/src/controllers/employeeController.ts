@@ -316,3 +316,77 @@ export const getEmployeeStats = async (req: AuthRequest, res: Response) => {
     return sendError(res, 'Failed to fetch employee stats', 500);
   }
 };
+
+export const deleteEmployee = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (req.user!.role !== 'ADMIN') {
+      return sendError(res, 'Only admins can permanently delete employees', 403);
+    }
+
+    const employee = await prisma.employee.findUnique({
+      where: { id },
+      include: { user: true },
+    });
+
+    if (!employee) {
+      return sendError(res, 'Employee not found', 404);
+    }
+
+    // Cascade delete: deleting the user deletes the employee (onDelete: Cascade)
+    await prisma.user.delete({ where: { id: employee.userId } });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.userId,
+        action: 'DELETE',
+        entity: 'EMPLOYEE',
+        entityId: id,
+        changes: JSON.stringify({ deletedEmployee: `${employee.firstName} ${employee.lastName}` }),
+      },
+    });
+
+    return sendSuccess(res, null, 'Employee permanently deleted');
+  } catch (error: any) {
+    console.error('Delete employee error:', error);
+    return sendError(res, 'Failed to delete employee', 500);
+  }
+};
+
+export const resetEmployeePassword = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { newPassword } = req.body;
+
+    const employee = await prisma.employee.findUnique({
+      where: { id },
+      include: { user: true },
+    });
+
+    if (!employee || !employee.user) {
+      return sendError(res, 'Employee not found', 404);
+    }
+
+    const hashedPassword = await hashPassword(newPassword);
+    await prisma.user.update({
+      where: { id: employee.user.id },
+      data: { password: hashedPassword },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.userId,
+        action: 'PASSWORD_RESET',
+        entity: 'USER',
+        entityId: employee.user.id,
+        changes: JSON.stringify({ employee: `${employee.firstName} ${employee.lastName}` }),
+      },
+    });
+
+    return sendSuccess(res, null, 'Password reset successfully');
+  } catch (error: any) {
+    console.error('Reset password error:', error);
+    return sendError(res, 'Failed to reset password', 500);
+  }
+};

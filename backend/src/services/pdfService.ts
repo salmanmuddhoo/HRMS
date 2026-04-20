@@ -35,11 +35,6 @@ interface PayslipData {
   };
 }
 
-// Format currency in Mauritian Rupees
-const formatCurrency = (amount: number): string => {
-  return `Rs ${amount.toLocaleString('en-MU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
-
 export const generatePayslipPDF = async (
   data: PayslipData,
   outputPath: string
@@ -63,24 +58,6 @@ export const generatePayslipPDF = async (
       const primaryColor = '#2c3e50';
       const secondaryColor = '#34495e';
       const accentColor = '#3498db';
-
-      // Check if logo exists and add it
-      const logoPath = path.join(process.cwd(), 'public', 'logo.png');
-      if (fs.existsSync(logoPath)) {
-        try {
-          const imageWidth = 80;
-          const imageHeight = 80;
-          const xPosition = (doc.page.width - imageWidth) / 2;
-          doc.image(logoPath, xPosition, doc.y, {
-            width: imageWidth,
-            height: imageHeight,
-            align: 'center',
-          });
-          doc.moveDown(5);
-        } catch (error) {
-          console.log('Could not add logo to PDF:', error);
-        }
-      }
 
       // Header
       doc
@@ -241,7 +218,7 @@ export const generatePayslipPDF = async (
         .fillColor(secondaryColor)
         .text('Base Salary:', leftColumn, yPos)
         .text(
-          formatCurrency(data.payroll.baseSalary),
+          `$${data.payroll.baseSalary.toFixed(2)}`,
           leftColumn + 150,
           yPos,
           { align: 'right', width: 100 }
@@ -251,7 +228,7 @@ export const generatePayslipPDF = async (
       doc
         .text('Travelling Allowance:', leftColumn, yPos)
         .text(
-          formatCurrency(data.payroll.travellingAllowance),
+          `$${data.payroll.travellingAllowance.toFixed(2)}`,
           leftColumn + 150,
           yPos,
           { align: 'right', width: 100 }
@@ -261,7 +238,7 @@ export const generatePayslipPDF = async (
       doc
         .text('Other Allowances:', leftColumn, yPos)
         .text(
-          formatCurrency(data.payroll.otherAllowances),
+          `$${data.payroll.otherAllowances.toFixed(2)}`,
           leftColumn + 150,
           yPos,
           { align: 'right', width: 100 }
@@ -273,7 +250,7 @@ export const generatePayslipPDF = async (
         .fillColor(primaryColor)
         .text('Gross Salary:', leftColumn, yPos)
         .text(
-          formatCurrency(data.payroll.grossSalary),
+          `$${data.payroll.grossSalary.toFixed(2)}`,
           leftColumn + 150,
           yPos,
           { align: 'right', width: 100 }
@@ -304,7 +281,7 @@ export const generatePayslipPDF = async (
         .fillColor(secondaryColor)
         .text('Travelling Allowance Deduction:', leftColumn, yPos)
         .text(
-          formatCurrency(data.payroll.travellingDeduction),
+          `$${data.payroll.travellingDeduction.toFixed(2)}`,
           leftColumn + 200,
           yPos,
           { align: 'right', width: 100 }
@@ -316,7 +293,7 @@ export const generatePayslipPDF = async (
         .fillColor(primaryColor)
         .text('Total Deductions:', leftColumn, yPos)
         .text(
-          formatCurrency(data.payroll.totalDeductions),
+          `$${data.payroll.totalDeductions.toFixed(2)}`,
           leftColumn + 200,
           yPos,
           { align: 'right', width: 100 }
@@ -340,7 +317,7 @@ export const generatePayslipPDF = async (
         .text('NET SALARY:', leftColumn, doc.y)
         .fontSize(16)
         .text(
-          formatCurrency(data.payroll.netSalary),
+          `$${data.payroll.netSalary.toFixed(2)}`,
           leftColumn + 150,
           doc.y - 16,
           { align: 'right', width: 150 }

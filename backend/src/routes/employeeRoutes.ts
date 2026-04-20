@@ -7,6 +7,7 @@ import {
   updateEmployee,
   deactivateEmployee,
   getEmployeeStats,
+  deleteEmployee,
   resetEmployeePassword,
 } from '../controllers/employeeController';
 import { authenticate, authorize } from '../middleware/auth';
@@ -14,7 +15,6 @@ import { validate } from '../middleware/validation';
 
 const router = Router();
 
-// All routes require authentication
 router.use(authenticate);
 
 router.get('/', getAllEmployees);
@@ -50,16 +50,17 @@ router.put(
   updateEmployee
 );
 
-router.delete('/:id', authorize('ADMIN', 'EMPLOYER'), deactivateEmployee);
+// Deactivate (ADMIN + EMPLOYER can deactivate)
+router.patch('/:id/deactivate', authorize('ADMIN', 'EMPLOYER'), deactivateEmployee);
 
+// Hard delete (ADMIN only)
+router.delete('/:id', authorize('ADMIN'), deleteEmployee);
+
+// Reset password (ADMIN + EMPLOYER)
 router.post(
   '/:id/reset-password',
   authorize('ADMIN', 'EMPLOYER'),
-  validate([
-    body('newPassword')
-      .isLength({ min: 6 })
-      .withMessage('New password must be at least 6 characters'),
-  ]),
+  validate([body('newPassword').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')]),
   resetEmployeePassword
 );
 

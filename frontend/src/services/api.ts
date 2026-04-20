@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || '/api';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 class ApiService {
   private api: AxiosInstance;
@@ -48,16 +48,16 @@ class ApiService {
   }
 
   // Auth
-  async login<T = any>(email: string, password: string): Promise<T> {
-    return this.request<T>({
+  async login(email: string, password: string) {
+    return this.request({
       method: 'POST',
       url: '/auth/login',
       data: { email, password },
     });
   }
 
-  async getMe<T = any>(): Promise<T> {
-    return this.request<T>({ method: 'GET', url: '/auth/me' });
+  async getMe() {
+    return this.request({ method: 'GET', url: '/auth/me' });
   }
 
   async changePassword(currentPassword: string, newPassword: string) {
@@ -86,19 +86,23 @@ class ApiService {
   }
 
   async deactivateEmployee(id: string) {
+    return this.request({ method: 'PATCH', url: `/employees/${id}/deactivate` });
+  }
+
+  async deleteEmployee(id: string) {
     return this.request({ method: 'DELETE', url: `/employees/${id}` });
+  }
+
+  async resetEmployeePassword(id: string, newPassword: string) {
+    return this.request({ method: 'POST', url: `/employees/${id}/reset-password`, data: { newPassword } });
   }
 
   async getEmployeeStats() {
     return this.request({ method: 'GET', url: '/employees/stats' });
   }
 
-  async resetEmployeePassword(id: string, newPassword: string) {
-    return this.request({
-      method: 'POST',
-      url: `/employees/${id}/reset-password`,
-      data: { newPassword },
-    });
+  async updateEmailNotifications(emailNotifications: boolean) {
+    return this.request({ method: 'PUT', url: '/auth/email-notifications', data: { emailNotifications } });
   }
 
   // Leaves
@@ -112,10 +116,6 @@ class ApiService {
 
   async applyLeave(data: any) {
     return this.request({ method: 'POST', url: '/leaves/apply', data });
-  }
-
-  async updateLeave(id: string, data: any) {
-    return this.request({ method: 'PUT', url: `/leaves/${id}`, data });
   }
 
   async addUrgentLeave(data: any) {
@@ -240,22 +240,9 @@ class ApiService {
     });
   }
 
-  async uploadHolidays(file: File) {
-    const formData = new FormData();
-    formData.append('file', file);
-    return this.request({
-      method: 'POST',
-      url: '/holidays/upload',
-      data: formData,
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-  }
-
   // Reports
-  async getDashboardStats<T = any>(): Promise<T> {
-    return this.request<T>({ method: 'GET', url: '/reports/dashboard' });
+  async getDashboardStats() {
+    return this.request({ method: 'GET', url: '/reports/dashboard' });
   }
 
   async getLeaveReport(params?: any) {
@@ -268,19 +255,6 @@ class ApiService {
 
   async getPayrollReport(params?: any) {
     return this.request({ method: 'GET', url: '/reports/payroll', params });
-  }
-
-  // System Config
-  async getConfig() {
-    return this.request({ method: 'GET', url: '/config' });
-  }
-
-  async getLeaveDefaults() {
-    return this.request({ method: 'GET', url: '/config/leave-defaults' });
-  }
-
-  async updateConfig(configs: Array<{ key: string; value: string; description?: string }>) {
-    return this.request({ method: 'POST', url: '/config/batch', data: configs });
   }
 }
 

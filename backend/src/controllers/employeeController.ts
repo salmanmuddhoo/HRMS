@@ -76,29 +76,6 @@ export const getEmployeeById = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Helper function to calculate prorated leave
-const calculateProratedLeave = (annualLeave: number, joiningDate: Date): number => {
-  const today = new Date();
-  const yearStart = new Date(today.getFullYear(), 0, 1);
-  const yearEnd = new Date(today.getFullYear(), 11, 31);
-
-  // If joining date is before this year, give full leave
-  if (joiningDate < yearStart) {
-    return annualLeave;
-  }
-
-  // If joining date is after this year, return 0
-  if (joiningDate > yearEnd) {
-    return 0;
-  }
-
-  // Calculate remaining months in the year (including joining month)
-  const remainingMonths = 12 - joiningDate.getMonth();
-  const proratedLeave = Math.ceil((annualLeave / 12) * remainingMonths);
-
-  return proratedLeave;
-};
-
 export const createEmployee = async (req: AuthRequest, res: Response) => {
   try {
     const {
@@ -115,7 +92,6 @@ export const createEmployee = async (req: AuthRequest, res: Response) => {
       otherAllowances,
       localLeaveBalance,
       sickLeaveBalance,
-      useProration,
       password,
       role,
     } = req.body;
@@ -136,42 +112,6 @@ export const createEmployee = async (req: AuthRequest, res: Response) => {
 
     if (existingEmail) {
       return sendError(res, 'Email already exists', 400);
-    }
-
-    // Get default leave values from system config
-    const defaultLocalLeaveConfig = await prisma.systemConfig.findUnique({
-      where: { key: 'DEFAULT_LOCAL_LEAVE' },
-    });
-    const defaultSickLeaveConfig = await prisma.systemConfig.findUnique({
-      where: { key: 'DEFAULT_SICK_LEAVE' },
-    });
-
-    const defaultLocalLeave = defaultLocalLeaveConfig ? parseInt(defaultLocalLeaveConfig.value) : 15;
-    const defaultSickLeave = defaultSickLeaveConfig ? parseInt(defaultSickLeaveConfig.value) : 10;
-
-    // Calculate leave balances
-    const joinDate = new Date(joiningDate);
-    let finalLocalLeave: number;
-    let finalSickLeave: number;
-
-    if (localLeaveBalance !== undefined && localLeaveBalance !== null && localLeaveBalance !== '') {
-      // Use manually specified value
-      finalLocalLeave = parseInt(localLeaveBalance);
-    } else if (useProration !== false) {
-      // Prorate based on joining date
-      finalLocalLeave = calculateProratedLeave(defaultLocalLeave, joinDate);
-    } else {
-      finalLocalLeave = defaultLocalLeave;
-    }
-
-    if (sickLeaveBalance !== undefined && sickLeaveBalance !== null && sickLeaveBalance !== '') {
-      // Use manually specified value
-      finalSickLeave = parseInt(sickLeaveBalance);
-    } else if (useProration !== false) {
-      // Prorate based on joining date
-      finalSickLeave = calculateProratedLeave(defaultSickLeave, joinDate);
-    } else {
-      finalSickLeave = defaultSickLeave;
     }
 
     // Create user account
@@ -196,12 +136,12 @@ export const createEmployee = async (req: AuthRequest, res: Response) => {
         phone,
         department,
         jobTitle,
-        joiningDate: joinDate,
+        joiningDate: new Date(joiningDate),
         baseSalary: parseFloat(baseSalary),
         travellingAllowance: parseFloat(travellingAllowance || 0),
         otherAllowances: parseFloat(otherAllowances || 0),
-        localLeaveBalance: finalLocalLeave,
-        sickLeaveBalance: finalSickLeave,
+        localLeaveBalance: parseInt(localLeaveBalance || 0),
+        sickLeaveBalance: parseInt(sickLeaveBalance || 0),
         status: 'ACTIVE',
       },
       include: {
@@ -377,42 +317,70 @@ export const getEmployeeStats = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const deleteEmployee = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (req.user!.role !== 'ADMIN') {
+      return sendError(res, 'Only admins can permanently delete employees', 403);
+    }
+
+    const employee = await prisma.employee.findUnique({
+      where: { id },
+      include: { user: true },
+    });
+
+    if (!employee) {
+      return sendError(res, 'Employee not found', 404);
+    }
+
+    // Cascade delete: deleting the user deletes the employee (onDelete: Cascade)
+    await prisma.user.delete({ where: { id: employee.userId } });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.userId,
+        action: 'DELETE',
+        entity: 'EMPLOYEE',
+        entityId: id,
+        changes: JSON.stringify({ deletedEmployee: `${employee.firstName} ${employee.lastName}` }),
+      },
+    });
+
+    return sendSuccess(res, null, 'Employee permanently deleted');
+  } catch (error: any) {
+    console.error('Delete employee error:', error);
+    return sendError(res, 'Failed to delete employee', 500);
+  }
+};
+
 export const resetEmployeePassword = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { newPassword } = req.body;
 
-    // Find the employee and their user account
     const employee = await prisma.employee.findUnique({
       where: { id },
-      include: {
-        user: true,
-      },
+      include: { user: true },
     });
 
     if (!employee || !employee.user) {
-      return sendError(res, 'Employee or user account not found', 404);
+      return sendError(res, 'Employee not found', 404);
     }
 
-    // Hash the new password
     const hashedPassword = await hashPassword(newPassword);
-
-    // Update the user's password
     await prisma.user.update({
       where: { id: employee.user.id },
       data: { password: hashedPassword },
     });
 
-    // Log the password reset in audit log
     await prisma.auditLog.create({
       data: {
         userId: req.user!.userId,
         action: 'PASSWORD_RESET',
         entity: 'USER',
         entityId: employee.user.id,
-        changes: JSON.stringify({
-          message: `Password reset for employee ${employee.firstName} ${employee.lastName} (${employee.employeeId})`
-        }),
+        changes: JSON.stringify({ employee: `${employee.firstName} ${employee.lastName}` }),
       },
     });
 

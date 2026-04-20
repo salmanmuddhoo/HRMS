@@ -10,45 +10,32 @@ export const authenticate = (
   req: AuthRequest,
   res: Response,
   next: NextFunction
-): void => {
+) => {
   try {
-    let token: string | undefined;
-
-    // Check Authorization header first
     const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.substring(7);
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return sendError(res, 'No token provided', 401);
     }
 
-    // Fallback to query parameter (for file downloads via window.open)
-    if (!token && req.query.token) {
-      token = req.query.token as string;
-    }
-
-    if (!token) {
-      sendError(res, 'No token provided', 401);
-      return;
-    }
-
+    const token = authHeader.substring(7);
     const decoded = verifyToken(token);
 
     req.user = decoded;
     next();
   } catch (error) {
-    sendError(res, 'Invalid or expired token', 401);
+    return sendError(res, 'Invalid or expired token', 401);
   }
 };
 
 export const authorize = (...roles: string[]) => {
-  return (req: AuthRequest, res: Response, next: NextFunction): void => {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
-      sendError(res, 'Unauthorized', 401);
-      return;
+      return sendError(res, 'Unauthorized', 401);
     }
 
     if (!roles.includes(req.user.role)) {
-      sendError(res, 'Forbidden - Insufficient permissions', 403);
-      return;
+      return sendError(res, 'Forbidden - Insufficient permissions', 403);
     }
 
     next();

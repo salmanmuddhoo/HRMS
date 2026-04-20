@@ -1,11 +1,11 @@
 {
-  "name": "waqt-backend",
+  "name": "elpms-backend",
   "version": "1.0.0",
-  "description": "Waqt Backend API",
+  "description": "ELPMS Backend API",
   "main": "dist/server.js",
   "scripts": {
     "dev": "npx nodemon src/server.ts",
-    "build": "npx prisma generate && npx -p typescript tsc",
+    "build": "tsc",
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -17,7 +17,7 @@
   "license": "MIT",
   "dependencies": {
     "@prisma/client": "^5.9.1",
-    "@types/nodemailer": "^7.0.9",
+    "@types/nodemailer": "^8.0.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.1",
@@ -25,9 +25,8 @@
     "express-validator": "^7.0.1",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
-    "nodemailer": "^7.0.13",
-    "pdfkit": "^0.14.0",
-    "xlsx": "^0.18.5"
+    "nodemailer": "^8.0.5",
+    "pdfkit": "^0.14.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

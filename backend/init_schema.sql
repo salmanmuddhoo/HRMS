@@ -1,4 +1,4 @@
--- Waqt Database Schema
+-- ELPMS Database Schema
 -- Generated from Prisma schema
 
 -- Create ENUM types

@@ -240,6 +240,30 @@ class ApiService {
     });
   }
 
+  async uploadHolidays(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request({
+      method: 'POST',
+      url: '/holidays/upload',
+      data: formData,
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  }
+
+  // System Config
+  async getConfig() {
+    return this.request({ method: 'GET', url: '/config' });
+  }
+
+  async getLeaveDefaults() {
+    return this.request({ method: 'GET', url: '/config/leave-defaults' });
+  }
+
+  async updateConfig(configs: Array<{ key: string; value: string; description?: string }>) {
+    return this.request({ method: 'POST', url: '/config/batch', data: configs });
+  }
+
   // Reports
   async getDashboardStats() {
     return this.request({ method: 'GET', url: '/reports/dashboard' });

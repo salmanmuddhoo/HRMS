@@ -29,6 +29,7 @@ const Leaves: React.FC = () => {
   const [leaves, setLeaves] = useState<Leave[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
+  const [employeeSearch, setEmployeeSearch] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -222,7 +223,26 @@ const Leaves: React.FC = () => {
             </select>
           </div>
 
-          {leaves.length === 0 ? (
+          {isEmployer && (
+            <div className="mb-4">
+              <input
+                type="text"
+                placeholder="Filter by employee name..."
+                value={employeeSearch}
+                onChange={(e) => setEmployeeSearch(e.target.value)}
+                className="w-full sm:w-72 border border-gray-300 rounded-md px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500"
+              />
+            </div>
+          )}
+
+          {(() => {
+            const filtered = isEmployer && employeeSearch
+              ? leaves.filter((l) => {
+                  const name = `${l.employee?.firstName ?? ''} ${l.employee?.lastName ?? ''}`.toLowerCase();
+                  return name.includes(employeeSearch.toLowerCase());
+                })
+              : leaves;
+            return filtered.length === 0 ? (
             <div className="text-center text-gray-500 py-10">No leaves found.</div>
           ) : (
             <div className="overflow-x-auto -mx-4 sm:mx-0">
@@ -239,7 +259,7 @@ const Leaves: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {leaves.map((leave) => (
+                  {filtered.map((leave) => (
                     <tr key={leave.id} className="hover:bg-gray-50">
                       {isEmployer && (
                         <td className="px-3 py-3 whitespace-nowrap">
@@ -313,7 +333,8 @@ const Leaves: React.FC = () => {
                 </tbody>
               </table>
             </div>
-          )}
+          );
+          })()}
         </div>
 
         {/* Apply Leave Modal */}

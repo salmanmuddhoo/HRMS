@@ -12,6 +12,7 @@ import payrollRoutes from './routes/payrollRoutes';
 import payslipRoutes from './routes/payslipRoutes';
 import holidayRoutes from './routes/holidayRoutes';
 import reportRoutes from './routes/reportRoutes';
+import configRoutes from './routes/configRoutes';
 
 // Load environment variables
 dotenv.config();
@@ -42,13 +43,14 @@ app.use('/api/payroll', payrollRoutes);
 app.use('/api/payslips', payslipRoutes);
 app.use('/api/holidays', holidayRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/config', configRoutes);
 
 // Error handling middleware
 app.use(notFound);
 app.use(errorHandler);
 
-// Start server
-app.listen(PORT, () => {
+// Start server (skip in serverless environments)
+if (!process.env.VERCEL) app.listen(PORT, () => {
   console.log(`
 ╔════════════════════════════════════════════════════════════════╗
 ║                                                                ║

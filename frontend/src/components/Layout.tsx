@@ -76,7 +76,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             {/* Left: Logo + nav links */}
             <div className="flex items-center">
               <Link to="/dashboard" className="flex items-center gap-2 mr-6">
-                <img src="/logo.svg" alt="Al Barakah MCSL" className="h-10 w-10 object-contain" />
+                <img src="/logo/logo.png" alt="Al Barakah MCSL" className="h-10 w-10 object-contain" onError={(e) => { e.currentTarget.src = '/logo.svg'; }} />
                 <span className="hidden sm:block text-sm font-bold text-green-800 leading-tight">
                   Al Barakah<br />MCSL
                 </span>

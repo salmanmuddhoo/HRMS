@@ -7,10 +7,19 @@
     "dev": "npx nodemon src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "test": "jest --runInBand --forceExit",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "seed": "ts-node prisma/seed.ts"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "testMatch": ["**/__tests__/**/*.test.ts"],
+    "moduleNameMapper": {
+      "^.*/config/database$": "<rootDir>/src/__tests__/__mocks__/prisma.ts"
+    }
   },
   "keywords": [],
   "author": "",
@@ -32,12 +41,15 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
+    "@types/jest": "^30.0.0",
     "@types/jsonwebtoken": "^9.0.5",
     "@types/multer": "^1.4.11",
     "@types/node": "^20.11.5",
     "@types/pdfkit": "^0.13.3",
+    "jest": "^30.3.0",
     "nodemon": "^3.0.3",
     "prisma": "^5.9.1",
+    "ts-jest": "^29.4.9",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   }

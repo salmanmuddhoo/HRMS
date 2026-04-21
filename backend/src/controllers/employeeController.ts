@@ -187,58 +187,29 @@ export const updateEmployee = async (req: AuthRequest, res: Response) => {
     });
     if (!employee) return sendError(res, 'Employee not found', 404);
 
-    // Build raw SQL to bypass PgBouncer float8 binary encoding bug (22P03).
-    // Float values are sent as TEXT strings and cast to float8 inside the SQL.
-    const sets: string[] = [];
-    const vals: (string | null)[] = [];
-    const idx = () => `$${sets.length + 1}`;
+    const data: any = {};
+    if (firstName) data.firstName = firstName;
+    if (lastName) data.lastName = lastName;
+    if (phone !== undefined) data.phone = phone;
+    if (department) data.department = department;
+    if (jobTitle) data.jobTitle = jobTitle;
+    if (joiningDate) data.joiningDate = new Date(joiningDate);
+    if (status) data.status = status;
+    if (baseSalary !== undefined && baseSalary !== '') data.baseSalary = parseFloat(baseSalary);
+    if (travellingAllowance !== undefined && travellingAllowance !== '') data.travellingAllowance = parseFloat(travellingAllowance);
+    if (otherAllowances !== undefined && otherAllowances !== '') data.otherAllowances = parseFloat(otherAllowances);
+    if (localLeaveBalance !== undefined && localLeaveBalance !== '') data.localLeaveBalance = parseFloat(localLeaveBalance);
+    if (sickLeaveBalance !== undefined && sickLeaveBalance !== '') data.sickLeaveBalance = parseFloat(sickLeaveBalance);
 
-    const addStr = (col: string, val: any, skipEmpty = false) => {
-      if (val === undefined) return;
-      if (skipEmpty && !val) return;
-      sets.push(`"${col}" = ${idx()}`);
-      vals.push(val || null);
-    };
-    const addFloat = (col: string, raw: any) => {
-      const n = (raw !== '' && raw !== null && raw !== undefined) ? parseFloat(raw) : NaN;
-      if (isNaN(n)) return;
-      sets.push(`"${col}" = CAST(${idx()} AS float8)`);
-      vals.push(String(n));
-    };
+    const updated = await prisma.employee.update({
+      where: { id },
+      data,
+      include: { user: { select: { email: true, role: true } } },
+    });
 
-    addStr('firstName', firstName, true);
-    addStr('lastName', lastName, true);
-    addStr('phone', phone);
-    addStr('department', department, true);
-    addStr('jobTitle', jobTitle, true);
-    if (joiningDate) {
-      sets.push(`"joiningDate" = CAST(${idx()} AS timestamptz)`);
-      vals.push(new Date(joiningDate).toISOString());
-    }
-    addStr('status', status, true);
-    addFloat('baseSalary', baseSalary);
-    addFloat('travellingAllowance', travellingAllowance);
-    addFloat('otherAllowances', otherAllowances);
-    addFloat('localLeaveBalance', localLeaveBalance);
-    addFloat('sickLeaveBalance', sickLeaveBalance);
-
-    if (sets.length > 0) {
-      vals.push(id);
-      await prisma.$executeRawUnsafe(
-        `UPDATE employees SET ${sets.join(', ')} WHERE id = CAST($${vals.length} AS uuid)`,
-        ...vals
-      );
-    }
-
-    // Update user role if changed
     if (role && employee.user && role !== employee.user.role) {
       await prisma.user.update({ where: { id: employee.user.id }, data: { role } });
     }
-
-    const updated = await prisma.employee.findUnique({
-      where: { id },
-      include: { user: { select: { email: true, role: true } } },
-    });
 
     await prisma.auditLog.create({
       data: {

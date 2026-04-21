@@ -261,17 +261,17 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
         },
       });
 
-      // Deduct leave balance
+      // Deduct leave balance — UUID embedded as literal, float as text param to avoid PgBouncer 22P03
       if (leave.leaveType === 'LOCAL') {
-        await tx.employee.update({
-          where: { id: leave.employeeId },
-          data: { localLeaveBalance: { decrement: leave.totalDays } },
-        });
+        await tx.$executeRawUnsafe(
+          `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - CAST($1 AS float8) WHERE id = '${leave.employeeId}'`,
+          String(leave.totalDays)
+        );
       } else if (leave.leaveType === 'SICK') {
-        await tx.employee.update({
-          where: { id: leave.employeeId },
-          data: { sickLeaveBalance: { decrement: leave.totalDays } },
-        });
+        await tx.$executeRawUnsafe(
+          `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - CAST($1 AS float8) WHERE id = '${leave.employeeId}'`,
+          String(leave.totalDays)
+        );
       }
 
       if (leave.isHalfDay) {
@@ -471,17 +471,17 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
         },
       });
 
-      // Deduct leave balance
+      // Deduct leave balance — UUID embedded as literal, float as text param to avoid PgBouncer 22P03
       if (leaveType === 'LOCAL') {
-        await tx.employee.update({
-          where: { id: employeeId },
-          data: { localLeaveBalance: { decrement: totalDays } },
-        });
+        await tx.$executeRawUnsafe(
+          `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - CAST($1 AS float8) WHERE id = '${employeeId}'`,
+          String(totalDays)
+        );
       } else if (leaveType === 'SICK') {
-        await tx.employee.update({
-          where: { id: employeeId },
-          data: { sickLeaveBalance: { decrement: totalDays } },
-        });
+        await tx.$executeRawUnsafe(
+          `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - CAST($1 AS float8) WHERE id = '${employeeId}'`,
+          String(totalDays)
+        );
       }
 
       // Create attendance records
@@ -574,17 +574,17 @@ export const cancelLeave = async (req: AuthRequest, res: Response) => {
     // If leave was approved, restore leave balance
     if (leave.status === 'APPROVED') {
       await prisma.$transaction(async (tx) => {
-        // Restore leave balance
+        // Restore leave balance — UUID embedded as literal, float as text param to avoid PgBouncer 22P03
         if (leave.leaveType === 'LOCAL') {
-          await tx.employee.update({
-            where: { id: leave.employeeId },
-            data: { localLeaveBalance: { increment: leave.totalDays } },
-          });
+          await tx.$executeRawUnsafe(
+            `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" + CAST($1 AS float8) WHERE id = '${leave.employeeId}'`,
+            String(leave.totalDays)
+          );
         } else if (leave.leaveType === 'SICK') {
-          await tx.employee.update({
-            where: { id: leave.employeeId },
-            data: { sickLeaveBalance: { increment: leave.totalDays } },
-          });
+          await tx.$executeRawUnsafe(
+            `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" + CAST($1 AS float8) WHERE id = '${leave.employeeId}'`,
+            String(leave.totalDays)
+          );
         }
 
         // Delete attendance records

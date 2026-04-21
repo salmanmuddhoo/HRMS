@@ -271,16 +271,31 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
 
       // Calculate deduction from dates — never use stored totalDays (PgBouncer corrupts float8 on write)
       const deductDays = leave.isHalfDay ? 0.5 : calculateDaysBetween(leave.startDate, leave.endDate);
+
+      console.log('[approveLeave] leave.id:', leave.id);
+      console.log('[approveLeave] leave.leaveType:', leave.leaveType, '| typeof:', typeof leave.leaveType);
+      console.log('[approveLeave] leave.isHalfDay:', leave.isHalfDay);
+      console.log('[approveLeave] leave.startDate:', leave.startDate, '| leave.endDate:', leave.endDate);
+      console.log('[approveLeave] leave.totalDays (DB stored):', leave.totalDays);
+      console.log('[approveLeave] calculated deductDays:', deductDays, '| String(deductDays):', String(deductDays));
+      console.log('[approveLeave] leave.employeeId:', leave.employeeId);
+
       if (leave.leaveType === 'LOCAL') {
-        await tx.$executeRawUnsafe(
+        console.log('[approveLeave] Running LOCAL deduction SQL...');
+        const rowsAffected = await tx.$executeRawUnsafe(
           `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - CAST($1 AS float8) WHERE id = '${leave.employeeId}'`,
           String(deductDays)
         );
+        console.log('[approveLeave] LOCAL deduction rows affected:', rowsAffected);
       } else if (leave.leaveType === 'SICK') {
-        await tx.$executeRawUnsafe(
+        console.log('[approveLeave] Running SICK deduction SQL...');
+        const rowsAffected = await tx.$executeRawUnsafe(
           `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - CAST($1 AS float8) WHERE id = '${leave.employeeId}'`,
           String(deductDays)
         );
+        console.log('[approveLeave] SICK deduction rows affected:', rowsAffected);
+      } else {
+        console.log('[approveLeave] WARNING: leaveType did not match LOCAL or SICK — no deduction made. leaveType was:', JSON.stringify(leave.leaveType));
       }
 
       if (leave.isHalfDay) {

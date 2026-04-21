@@ -190,6 +190,14 @@ export const applyLeave = async (req: AuthRequest, res: Response) => {
       },
     });
 
+    // PgBouncer corrupts binary float8 encoding — fix totalDays via raw SQL if fractional
+    if (totalDays !== Math.floor(totalDays)) {
+      await prisma.$executeRawUnsafe(
+        `UPDATE leaves SET "totalDays" = CAST($1 AS float8) WHERE id = '${leave.id}'`,
+        String(totalDays)
+      );
+    }
+
     // Send email notification to admins/employers who have notifications enabled
     const managers = await prisma.user.findMany({
       where: { role: { in: ['ADMIN', 'EMPLOYER'] }, emailNotifications: true },
@@ -470,6 +478,14 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
           },
         },
       });
+
+      // PgBouncer corrupts binary float8 encoding — fix totalDays via raw SQL if fractional
+      if (totalDays !== Math.floor(totalDays)) {
+        await tx.$executeRawUnsafe(
+          `UPDATE leaves SET "totalDays" = CAST($1 AS float8) WHERE id = '${urgentLeave.id}'`,
+          String(totalDays)
+        );
+      }
 
       // Deduct leave balance — UUID embedded as literal, float as text param to avoid PgBouncer 22P03
       if (leaveType === 'LOCAL') {

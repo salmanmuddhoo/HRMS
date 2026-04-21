@@ -187,23 +187,46 @@ export const updateEmployee = async (req: AuthRequest, res: Response) => {
     });
     if (!employee) return sendError(res, 'Employee not found', 404);
 
-    const data: any = {};
-    if (firstName) data.firstName = firstName;
-    if (lastName) data.lastName = lastName;
-    if (phone !== undefined) data.phone = phone;
-    if (department) data.department = department;
-    if (jobTitle) data.jobTitle = jobTitle;
-    if (joiningDate) data.joiningDate = new Date(joiningDate);
-    if (status) data.status = status;
-    if (baseSalary !== undefined && baseSalary !== '') data.baseSalary = parseFloat(baseSalary);
-    if (travellingAllowance !== undefined && travellingAllowance !== '') data.travellingAllowance = parseFloat(travellingAllowance);
-    if (otherAllowances !== undefined && otherAllowances !== '') data.otherAllowances = parseFloat(otherAllowances);
-    if (localLeaveBalance !== undefined && localLeaveBalance !== '') data.localLeaveBalance = parseFloat(localLeaveBalance);
-    if (sickLeaveBalance !== undefined && sickLeaveBalance !== '') data.sickLeaveBalance = parseFloat(sickLeaveBalance);
+    // Build dynamic raw SQL — UUID embedded as literal, floats as text params to avoid PgBouncer 22P03
+    const sets: string[] = [];
+    const vals: string[] = [];
+    const p = () => `$${vals.length + 1}`;
 
-    const updated = await prisma.employee.update({
+    const addStr = (col: string, val: any, skipEmpty = false) => {
+      if (val === undefined) return;
+      if (skipEmpty && !val) return;
+      sets.push(`"${col}" = ${p()}`);
+      vals.push(val ?? null);
+    };
+    const addFloat = (col: string, raw: any) => {
+      const n = (raw !== '' && raw !== null && raw !== undefined) ? parseFloat(raw) : NaN;
+      if (isNaN(n)) return;
+      sets.push(`"${col}" = CAST(${p()} AS float8)`);
+      vals.push(String(n));
+    };
+
+    addStr('firstName', firstName, true);
+    addStr('lastName', lastName, true);
+    addStr('phone', phone);
+    addStr('department', department, true);
+    addStr('jobTitle', jobTitle, true);
+    if (joiningDate) { sets.push(`"joiningDate" = CAST(${p()} AS timestamptz)`); vals.push(new Date(joiningDate).toISOString()); }
+    addStr('status', status, true);
+    addFloat('baseSalary', baseSalary);
+    addFloat('travellingAllowance', travellingAllowance);
+    addFloat('otherAllowances', otherAllowances);
+    addFloat('localLeaveBalance', localLeaveBalance);
+    addFloat('sickLeaveBalance', sickLeaveBalance);
+
+    if (sets.length > 0) {
+      await prisma.$executeRawUnsafe(
+        `UPDATE employees SET ${sets.join(', ')} WHERE id = '${id}'`,
+        ...vals
+      );
+    }
+
+    const updated = await prisma.employee.findUnique({
       where: { id },
-      data,
       include: { user: { select: { email: true, role: true } } },
     });
 

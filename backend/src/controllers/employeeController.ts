@@ -204,6 +204,11 @@ export const updateEmployee = async (req: AuthRequest, res: Response) => {
       sets.push(`"${col}" = CAST(${p()} AS float8)`);
       vals.push(String(n));
     };
+    const addEnum = (col: string, enumType: string, val: any) => {
+      if (!val) return;
+      sets.push(`"${col}" = CAST(${p()} AS "${enumType}")`);
+      vals.push(val);
+    };
 
     addStr('firstName', firstName, true);
     addStr('lastName', lastName, true);
@@ -211,7 +216,7 @@ export const updateEmployee = async (req: AuthRequest, res: Response) => {
     addStr('department', department, true);
     addStr('jobTitle', jobTitle, true);
     if (joiningDate) { sets.push(`"joiningDate" = CAST(${p()} AS timestamptz)`); vals.push(new Date(joiningDate).toISOString()); }
-    addStr('status', status, true);
+    addEnum('status', 'EmploymentStatus', status);
     addFloat('baseSalary', baseSalary);
     addFloat('travellingAllowance', travellingAllowance);
     addFloat('otherAllowances', otherAllowances);

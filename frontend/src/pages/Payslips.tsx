@@ -87,8 +87,12 @@ const Payslips: React.FC = () => {
     }
   };
 
-  const handleDownloadPayslip = (payrollId: string) => {
-    api.downloadPayslip(payrollId);
+  const handleDownloadPayslip = async (payrollId: string) => {
+    try {
+      await api.downloadPayslip(payrollId);
+    } catch {
+      setError('Failed to download payslip');
+    }
   };
 
   const handleGenerateAll = async () => {

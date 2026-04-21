@@ -197,11 +197,17 @@ class ApiService {
   }
 
   async downloadPayslip(payrollId: string) {
-    const token = localStorage.getItem('token');
-    window.open(
-      `${API_URL}/payslips/download/${payrollId}?token=${token}`,
-      '_blank'
-    );
+    const response = await this.api.get(`/payslips/download/${payrollId}`, {
+      responseType: 'blob',
+    });
+    const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `payslip_${payrollId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   async getEmployeePayslips(employeeId: string) {

@@ -246,7 +246,7 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
       return sendError(res, 'Leave has already been processed', 400);
     }
 
-    // Update leave status
+    // Update leave status and attendance — ORM only inside transaction (no raw SQL)
     const updatedLeave = await prisma.$transaction(async (tx) => {
       // Approve leave
       const approved = await tx.leave.update({
@@ -268,35 +268,6 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
           },
         },
       });
-
-      // Calculate deduction from dates — never use stored totalDays (PgBouncer corrupts float8 on write)
-      const deductDays = leave.isHalfDay ? 0.5 : calculateDaysBetween(leave.startDate, leave.endDate);
-
-      console.log('[approveLeave] leave.id:', leave.id);
-      console.log('[approveLeave] leave.leaveType:', leave.leaveType, '| typeof:', typeof leave.leaveType);
-      console.log('[approveLeave] leave.isHalfDay:', leave.isHalfDay);
-      console.log('[approveLeave] leave.startDate:', leave.startDate, '| leave.endDate:', leave.endDate);
-      console.log('[approveLeave] leave.totalDays (DB stored):', leave.totalDays);
-      console.log('[approveLeave] calculated deductDays:', deductDays, '| String(deductDays):', String(deductDays));
-      console.log('[approveLeave] leave.employeeId:', leave.employeeId);
-
-      if (leave.leaveType === 'LOCAL') {
-        console.log('[approveLeave] Running LOCAL deduction SQL...');
-        const rowsAffected = await tx.$executeRawUnsafe(
-          `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - CAST($1 AS float8) WHERE id = '${leave.employeeId}'`,
-          String(deductDays)
-        );
-        console.log('[approveLeave] LOCAL deduction rows affected:', rowsAffected);
-      } else if (leave.leaveType === 'SICK') {
-        console.log('[approveLeave] Running SICK deduction SQL...');
-        const rowsAffected = await tx.$executeRawUnsafe(
-          `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - CAST($1 AS float8) WHERE id = '${leave.employeeId}'`,
-          String(deductDays)
-        );
-        console.log('[approveLeave] SICK deduction rows affected:', rowsAffected);
-      } else {
-        console.log('[approveLeave] WARNING: leaveType did not match LOCAL or SICK — no deduction made. leaveType was:', JSON.stringify(leave.leaveType));
-      }
 
       if (leave.isHalfDay) {
         await tx.attendance.upsert({
@@ -338,6 +309,35 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
 
       return approved;
     });
+
+    // Balance deduction OUTSIDE transaction — $executeRawUnsafe inside prisma.$transaction
+    // does not reliably execute via PgBouncer (different connection context).
+    const deductDays = leave.isHalfDay ? 0.5 : calculateDaysBetween(leave.startDate, leave.endDate);
+    console.log('[approveLeave] leave.id:', leave.id);
+    console.log('[approveLeave] leave.leaveType:', leave.leaveType, '| typeof:', typeof leave.leaveType);
+    console.log('[approveLeave] leave.isHalfDay:', leave.isHalfDay);
+    console.log('[approveLeave] leave.startDate:', leave.startDate, '| leave.endDate:', leave.endDate);
+    console.log('[approveLeave] leave.totalDays (DB stored):', leave.totalDays);
+    console.log('[approveLeave] calculated deductDays:', deductDays, '| String(deductDays):', String(deductDays));
+    console.log('[approveLeave] leave.employeeId:', leave.employeeId);
+
+    if (leave.leaveType === 'LOCAL') {
+      console.log('[approveLeave] Running LOCAL deduction SQL...');
+      const rowsAffected = await prisma.$executeRawUnsafe(
+        `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - CAST($1 AS float8) WHERE id = '${leave.employeeId}'`,
+        String(deductDays)
+      );
+      console.log('[approveLeave] LOCAL deduction rows affected:', rowsAffected);
+    } else if (leave.leaveType === 'SICK') {
+      console.log('[approveLeave] Running SICK deduction SQL...');
+      const rowsAffected = await prisma.$executeRawUnsafe(
+        `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - CAST($1 AS float8) WHERE id = '${leave.employeeId}'`,
+        String(deductDays)
+      );
+      console.log('[approveLeave] SICK deduction rows affected:', rowsAffected);
+    } else {
+      console.log('[approveLeave] WARNING: leaveType did not match LOCAL or SICK — no deduction made. leaveType was:', JSON.stringify(leave.leaveType));
+    }
 
     // Create audit log
     await prisma.auditLog.create({
@@ -465,7 +465,7 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
       return sendError(res, `Insufficient sick leave balance. Available: ${employee.sickLeaveBalance} days`, 400);
     }
 
-    // Create urgent leave (auto-approved)
+    // Create urgent leave (auto-approved) — ORM only inside transaction (no raw SQL)
     const leave = await prisma.$transaction(async (tx) => {
       const urgentLeave = await tx.leave.create({
         data: {
@@ -494,27 +494,6 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
           },
         },
       });
-
-      // PgBouncer corrupts binary float8 encoding — fix totalDays via raw SQL if fractional
-      if (totalDays !== Math.floor(totalDays)) {
-        await tx.$executeRawUnsafe(
-          `UPDATE leaves SET "totalDays" = CAST($1 AS float8) WHERE id = '${urgentLeave.id}'`,
-          String(totalDays)
-        );
-      }
-
-      // Deduct leave balance — UUID embedded as literal, float as text param to avoid PgBouncer 22P03
-      if (leaveType === 'LOCAL') {
-        await tx.$executeRawUnsafe(
-          `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - CAST($1 AS float8) WHERE id = '${employeeId}'`,
-          String(totalDays)
-        );
-      } else if (leaveType === 'SICK') {
-        await tx.$executeRawUnsafe(
-          `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - CAST($1 AS float8) WHERE id = '${employeeId}'`,
-          String(totalDays)
-        );
-      }
 
       // Create attendance records
       if (isHalfDay) {
@@ -557,6 +536,27 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
 
       return urgentLeave;
     });
+
+    // PgBouncer fix: patch totalDays OUTSIDE transaction if fractional
+    if (totalDays !== Math.floor(totalDays)) {
+      await prisma.$executeRawUnsafe(
+        `UPDATE leaves SET "totalDays" = CAST($1 AS float8) WHERE id = '${leave.id}'`,
+        String(totalDays)
+      );
+    }
+
+    // Deduct leave balance OUTSIDE transaction — raw SQL inside $transaction is unreliable via PgBouncer
+    if (leaveType === 'LOCAL') {
+      await prisma.$executeRawUnsafe(
+        `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - CAST($1 AS float8) WHERE id = '${employeeId}'`,
+        String(totalDays)
+      );
+    } else if (leaveType === 'SICK') {
+      await prisma.$executeRawUnsafe(
+        `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - CAST($1 AS float8) WHERE id = '${employeeId}'`,
+        String(totalDays)
+      );
+    }
 
     // Create audit log
     await prisma.auditLog.create({
@@ -603,34 +603,34 @@ export const cancelLeave = async (req: AuthRequest, res: Response) => {
       return sendError(res, 'Cannot cancel rejected leave', 400);
     }
 
-    // If leave was approved, restore leave balance
+    // If leave was approved, restore leave balance and delete attendance records
     if (leave.status === 'APPROVED') {
-      await prisma.$transaction(async (tx) => {
-        // Calculate restore from dates — never use stored totalDays (PgBouncer corrupts float8 on write)
-        const restoreDays = leave.isHalfDay ? 0.5 : calculateDaysBetween(leave.startDate, leave.endDate);
-        if (leave.leaveType === 'LOCAL') {
-          await tx.$executeRawUnsafe(
-            `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" + CAST($1 AS float8) WHERE id = '${leave.employeeId}'`,
-            String(restoreDays)
-          );
-        } else if (leave.leaveType === 'SICK') {
-          await tx.$executeRawUnsafe(
-            `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" + CAST($1 AS float8) WHERE id = '${leave.employeeId}'`,
-            String(restoreDays)
-          );
-        }
+      // Calculate restore from dates — never use stored totalDays (PgBouncer corrupts float8 on write)
+      const restoreDays = leave.isHalfDay ? 0.5 : calculateDaysBetween(leave.startDate, leave.endDate);
 
-        // Delete attendance records
-        await tx.attendance.deleteMany({
-          where: {
-            employeeId: leave.employeeId,
-            date: {
-              gte: leave.startDate,
-              lte: leave.endDate,
-            },
-            isLeave: true,
+      // Balance restore OUTSIDE transaction — raw SQL inside $transaction is unreliable via PgBouncer
+      if (leave.leaveType === 'LOCAL') {
+        await prisma.$executeRawUnsafe(
+          `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" + CAST($1 AS float8) WHERE id = '${leave.employeeId}'`,
+          String(restoreDays)
+        );
+      } else if (leave.leaveType === 'SICK') {
+        await prisma.$executeRawUnsafe(
+          `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" + CAST($1 AS float8) WHERE id = '${leave.employeeId}'`,
+          String(restoreDays)
+        );
+      }
+
+      // Delete attendance records (ORM only)
+      await prisma.attendance.deleteMany({
+        where: {
+          employeeId: leave.employeeId,
+          date: {
+            gte: leave.startDate,
+            lte: leave.endDate,
           },
-        });
+          isLeave: true,
+        },
       });
     }
 

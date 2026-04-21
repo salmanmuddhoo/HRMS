@@ -59,6 +59,12 @@ export const generatePayslipPDF = async (
       const secondaryColor = '#34495e';
       const accentColor = '#3498db';
 
+      // Logo — try backend/assets/logo.png (included via vercel.json includeFiles)
+      const logoPath = path.join(process.cwd(), 'backend', 'assets', 'logo.png');
+      if (fs.existsSync(logoPath)) {
+        doc.image(logoPath, { width: 80, align: 'center' }).moveDown(0.5);
+      }
+
       // Header
       doc
         .fontSize(24)

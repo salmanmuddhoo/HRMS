@@ -270,15 +270,17 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
       });
 
       // Deduct leave balance — UUID embedded as literal, float as text param to avoid PgBouncer 22P03
+      // Use isHalfDay to derive days so DB float corruption doesn't affect deduction amount
+      const deductDays = leave.isHalfDay ? 0.5 : leave.totalDays;
       if (leave.leaveType === 'LOCAL') {
         await tx.$executeRawUnsafe(
           `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - CAST($1 AS float8) WHERE id = '${leave.employeeId}'`,
-          String(leave.totalDays)
+          String(deductDays)
         );
       } else if (leave.leaveType === 'SICK') {
         await tx.$executeRawUnsafe(
           `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - CAST($1 AS float8) WHERE id = '${leave.employeeId}'`,
-          String(leave.totalDays)
+          String(deductDays)
         );
       }
 
@@ -591,15 +593,17 @@ export const cancelLeave = async (req: AuthRequest, res: Response) => {
     if (leave.status === 'APPROVED') {
       await prisma.$transaction(async (tx) => {
         // Restore leave balance — UUID embedded as literal, float as text param to avoid PgBouncer 22P03
+        // Use isHalfDay to derive days so DB float corruption doesn't affect restore amount
+        const restoreDays = leave.isHalfDay ? 0.5 : leave.totalDays;
         if (leave.leaveType === 'LOCAL') {
           await tx.$executeRawUnsafe(
             `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" + CAST($1 AS float8) WHERE id = '${leave.employeeId}'`,
-            String(leave.totalDays)
+            String(restoreDays)
           );
         } else if (leave.leaveType === 'SICK') {
           await tx.$executeRawUnsafe(
             `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" + CAST($1 AS float8) WHERE id = '${leave.employeeId}'`,
-            String(leave.totalDays)
+            String(restoreDays)
           );
         }
 

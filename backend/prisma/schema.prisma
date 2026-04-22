@@ -65,11 +65,11 @@ model Employee {
   jobTitle         String
   joiningDate      DateTime
   status           EmploymentStatus @default(ACTIVE)
-  baseSalary       Float
-  travellingAllowance Float         @default(0)
-  otherAllowances  Float            @default(0)
-  localLeaveBalance Float           @default(0)
-  sickLeaveBalance Float            @default(0)
+  baseSalary       Decimal
+  travellingAllowance Decimal         @default(0)
+  otherAllowances  Decimal            @default(0)
+  localLeaveBalance Decimal           @default(0)
+  sickLeaveBalance Decimal            @default(0)
   leaves           Leave[]
   attendances      Attendance[]
   payrolls         Payroll[]
@@ -87,7 +87,7 @@ model Leave {
   leaveType    LeaveType
   startDate    DateTime
   endDate      DateTime
-  totalDays    Float
+  totalDays    Decimal
   reason       String
   attachment   String?
   status       LeaveStatus @default(PENDING)
@@ -134,13 +134,13 @@ model Payroll {
   presentDays           Int
   leaveDays             Int
   absenceDays           Int
-  baseSalary            Float
-  travellingAllowance   Float
-  otherAllowances       Float
-  travellingDeduction   Float         @default(0)
-  totalDeductions       Float         @default(0)
-  grossSalary           Float
-  netSalary             Float
+  baseSalary            Decimal
+  travellingAllowance   Decimal
+  otherAllowances       Decimal
+  travellingDeduction   Decimal       @default(0)
+  totalDeductions       Decimal       @default(0)
+  grossSalary           Decimal
+  netSalary             Decimal
   status                PayrollStatus @default(DRAFT)
   approvedBy            String?
   approvedAt            DateTime?

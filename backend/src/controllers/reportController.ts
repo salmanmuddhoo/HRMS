@@ -52,7 +52,7 @@ export const getLeaveReport = async (req: AuthRequest, res: Response) => {
     const approvedLeaves = leaves.filter((l) => l.status === 'APPROVED').length;
     const pendingLeaves = leaves.filter((l) => l.status === 'PENDING').length;
     const rejectedLeaves = leaves.filter((l) => l.status === 'REJECTED').length;
-    const totalDays = leaves.reduce((sum, l) => sum + l.totalDays, 0);
+    const totalDays = leaves.reduce((sum, l) => sum + Number(l.totalDays), 0);
 
     const leavesByType = {
       LOCAL: leaves.filter((l) => l.leaveType === 'LOCAL').length,
@@ -65,7 +65,7 @@ export const getLeaveReport = async (req: AuthRequest, res: Response) => {
         acc[dept] = { count: 0, totalDays: 0 };
       }
       acc[dept].count++;
-      acc[dept].totalDays += leave.totalDays;
+      acc[dept].totalDays += Number(leave.totalDays);
       return acc;
     }, {});
 
@@ -212,17 +212,17 @@ export const getPayrollReport = async (req: AuthRequest, res: Response) => {
 
     // Calculate statistics
     const totalEmployees = payrolls.length;
-    const totalBaseSalary = payrolls.reduce((sum, p) => sum + p.baseSalary, 0);
+    const totalBaseSalary = payrolls.reduce((sum, p) => sum + Number(p.baseSalary), 0);
     const totalAllowances = payrolls.reduce(
-      (sum, p) => sum + p.travellingAllowance + p.otherAllowances,
+      (sum, p) => sum + Number(p.travellingAllowance) + Number(p.otherAllowances),
       0
     );
     const totalDeductions = payrolls.reduce(
-      (sum, p) => sum + p.totalDeductions,
+      (sum, p) => sum + Number(p.totalDeductions),
       0
     );
-    const totalGrossSalary = payrolls.reduce((sum, p) => sum + p.grossSalary, 0);
-    const totalNetSalary = payrolls.reduce((sum, p) => sum + p.netSalary, 0);
+    const totalGrossSalary = payrolls.reduce((sum, p) => sum + Number(p.grossSalary), 0);
+    const totalNetSalary = payrolls.reduce((sum, p) => sum + Number(p.netSalary), 0);
 
     const payrollsByDepartment = payrolls.reduce((acc: any, payroll) => {
       const dept = payroll.employee.department;
@@ -234,8 +234,8 @@ export const getPayrollReport = async (req: AuthRequest, res: Response) => {
         };
       }
       acc[dept].count++;
-      acc[dept].totalNetSalary += payroll.netSalary;
-      acc[dept].totalDeductions += payroll.totalDeductions;
+      acc[dept].totalNetSalary += Number(payroll.netSalary);
+      acc[dept].totalDeductions += Number(payroll.totalDeductions);
       return acc;
     }, {});
 
@@ -294,7 +294,7 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
     });
 
     const totalPayroll = currentPayroll.reduce(
-      (sum, p) => sum + p.netSalary,
+      (sum, p) => sum + Number(p.netSalary),
       0
     );
 

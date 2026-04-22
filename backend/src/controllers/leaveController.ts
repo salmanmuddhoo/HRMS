@@ -11,8 +11,9 @@ function getLeaveDays(leave: {
   startDate: Date;
   endDate: Date;
 }): number {
-  const stored = Number(leave.totalDays);
-  return stored > 0 ? stored : leave.isHalfDay ? 0.5 : calculateDaysBetween(leave.startDate, leave.endDate);
+  const stored = parseFloat(String(leave.totalDays));
+  if (!isNaN(stored) && stored > 0) return stored;
+  return leave.isHalfDay ? 0.5 : calculateDaysBetween(leave.startDate, leave.endDate);
 }
 
 export const getAllLeaves = async (req: AuthRequest, res: Response) => {
@@ -250,6 +251,13 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
 
     const deductDays = getLeaveDays(leave);
 
+    if (typeof deductDays !== 'number' || isNaN(deductDays) || deductDays <= 0) {
+      throw new Error(`Invalid deductDays: ${deductDays}`);
+    }
+    if (typeof leave.employeeId !== 'string' || !leave.employeeId) {
+      throw new Error(`Invalid employeeId: ${leave.employeeId}`);
+    }
+
     const updatedLeave = await prisma.$transaction(async (tx) => {
       const approved = await tx.leave.update({
         where: { id },
@@ -444,11 +452,19 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
     const end = new Date(endDate);
     const totalDays = isHalfDay ? 0.5 : calculateDaysBetween(start, end);
 
+    const safeDays = parseFloat(String(totalDays));
+    if (isNaN(safeDays) || safeDays <= 0) {
+      throw new Error(`Invalid totalDays: ${totalDays}`);
+    }
+    if (typeof employeeId !== 'string' || !employeeId) {
+      throw new Error(`Invalid employeeId: ${employeeId}`);
+    }
+
     // Check leave balance
-    if (leaveType === 'LOCAL' && employee.localLeaveBalance < totalDays) {
+    if (leaveType === 'LOCAL' && employee.localLeaveBalance < safeDays) {
       return sendError(res, `Insufficient annual leave balance. Available: ${employee.localLeaveBalance} days`, 400);
     }
-    if (leaveType === 'SICK' && employee.sickLeaveBalance < totalDays) {
+    if (leaveType === 'SICK' && employee.sickLeaveBalance < safeDays) {
       return sendError(res, `Insufficient sick leave balance. Available: ${employee.sickLeaveBalance} days`, 400);
     }
 
@@ -459,7 +475,7 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
           leaveType,
           startDate: start,
           endDate: end,
-          totalDays,
+          totalDays: safeDays,
           reason,
           status: 'APPROVED',
           isUrgent: true,
@@ -524,12 +540,12 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
       if (leaveType === 'LOCAL') {
         await tx.employee.update({
           where: { id: employeeId },
-          data: { localLeaveBalance: { decrement: totalDays } },
+          data: { localLeaveBalance: { decrement: safeDays } },
         });
       } else if (leaveType === 'SICK') {
         await tx.employee.update({
           where: { id: employeeId },
-          data: { sickLeaveBalance: { decrement: totalDays } },
+          data: { sickLeaveBalance: { decrement: safeDays } },
         });
       }
 
@@ -584,6 +600,13 @@ export const cancelLeave = async (req: AuthRequest, res: Response) => {
     await prisma.$transaction(async (tx) => {
       if (leave.status === 'APPROVED') {
         const restoreDays = getLeaveDays(leave);
+
+        if (typeof restoreDays !== 'number' || isNaN(restoreDays) || restoreDays <= 0) {
+          throw new Error(`Invalid restoreDays: ${restoreDays}`);
+        }
+        if (typeof leave.employeeId !== 'string' || !leave.employeeId) {
+          throw new Error(`Invalid employeeId: ${leave.employeeId}`);
+        }
 
         if (leave.leaveType === 'LOCAL') {
           await tx.employee.update({

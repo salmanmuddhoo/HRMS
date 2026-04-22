@@ -312,13 +312,21 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
 
     // Balance deduction OUTSIDE transaction — $executeRawUnsafe inside prisma.$transaction
     // does not reliably execute via PgBouncer (different connection context).
-    const deductDays = leave.isHalfDay ? 0.5 : calculateDaysBetween(leave.startDate, leave.endDate);
+    //
+    // Use stored totalDays as the source of truth — it was patched via raw SQL after create
+    // so it holds the correct value (0.5 for half-days, N for multi-day).
+    // Only fall back to date/isHalfDay recomputation if totalDays is somehow zero.
+    const storedDays = Number(leave.totalDays);
+    const deductDays = storedDays > 0
+      ? storedDays
+      : leave.isHalfDay ? 0.5 : calculateDaysBetween(leave.startDate, leave.endDate);
+
     console.log('[approveLeave] leave.id:', leave.id);
     console.log('[approveLeave] leave.leaveType:', leave.leaveType, '| typeof:', typeof leave.leaveType);
-    console.log('[approveLeave] leave.isHalfDay:', leave.isHalfDay);
+    console.log('[approveLeave] leave.isHalfDay:', leave.isHalfDay, '| typeof:', typeof leave.isHalfDay);
+    console.log('[approveLeave] leave.totalDays (DB stored):', leave.totalDays, '| Number(leave.totalDays):', storedDays);
     console.log('[approveLeave] leave.startDate:', leave.startDate, '| leave.endDate:', leave.endDate);
-    console.log('[approveLeave] leave.totalDays (DB stored):', leave.totalDays);
-    console.log('[approveLeave] calculated deductDays:', deductDays, '| String(deductDays):', String(deductDays));
+    console.log('[approveLeave] deductDays (final):', deductDays, '| String(deductDays):', String(deductDays));
     console.log('[approveLeave] leave.employeeId:', leave.employeeId);
 
     if (leave.leaveType === 'LOCAL') {
@@ -605,8 +613,12 @@ export const cancelLeave = async (req: AuthRequest, res: Response) => {
 
     // If leave was approved, restore leave balance and delete attendance records
     if (leave.status === 'APPROVED') {
-      // Calculate restore from dates — never use stored totalDays (PgBouncer corrupts float8 on write)
-      const restoreDays = leave.isHalfDay ? 0.5 : calculateDaysBetween(leave.startDate, leave.endDate);
+      // Use stored totalDays as source of truth (patched correctly after create).
+      // Fall back to recomputation only if totalDays is zero.
+      const storedDays = Number(leave.totalDays);
+      const restoreDays = storedDays > 0
+        ? storedDays
+        : leave.isHalfDay ? 0.5 : calculateDaysBetween(leave.startDate, leave.endDate);
 
       // Balance restore OUTSIDE transaction — raw SQL inside $transaction is unreliable via PgBouncer
       if (leave.leaveType === 'LOCAL') {

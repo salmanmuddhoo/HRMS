@@ -17,6 +17,7 @@ const makeMock = (): any => {
     auditLog: { create: jest.fn() },
     user: { findUnique: jest.fn() },
     $executeRawUnsafe: jest.fn().mockResolvedValue(1),
+    $executeRaw: jest.fn().mockResolvedValue(1),
   };
   mock.$transaction = jest.fn((fn: (tx: any) => Promise<any>) => fn(mock));
   return mock;

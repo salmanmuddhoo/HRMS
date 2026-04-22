@@ -1,9 +1,20 @@
 import { Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth';
 import prisma from '../config/database';
 import { sendSuccess, sendError } from '../utils/response';
 import { calculateDaysBetween } from '../utils/date';
 import emailService from '../services/emailService';
+
+function getLeaveDays(leave: {
+  totalDays: any;
+  isHalfDay: boolean;
+  startDate: Date;
+  endDate: Date;
+}): number {
+  const stored = Number(leave.totalDays);
+  return stored > 0 ? stored : leave.isHalfDay ? 0.5 : calculateDaysBetween(leave.startDate, leave.endDate);
+}
 
 export const getAllLeaves = async (req: AuthRequest, res: Response) => {
   try {
@@ -190,12 +201,9 @@ export const applyLeave = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // Float literal embedded (no binding) to avoid PgBouncer float8 corruption.
-    // UUID bound as $1 (text param — safe with PgBouncer).
     if (totalDays !== Math.floor(totalDays)) {
-      await prisma.$executeRawUnsafe(
-        `UPDATE leaves SET "totalDays" = ${Number(totalDays)}::float8 WHERE id = $1`,
-        leave.id
+      await prisma.$executeRaw(
+        Prisma.sql`UPDATE leaves SET "totalDays" = ${Prisma.raw(String(totalDays))}::float8 WHERE id = ${leave.id}::uuid`
       );
     }
 
@@ -247,9 +255,9 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
       return sendError(res, 'Leave has already been processed', 400);
     }
 
-    // Update leave status and attendance — ORM only inside transaction (no raw SQL)
+    const deductDays = getLeaveDays(leave);
+
     const updatedLeave = await prisma.$transaction(async (tx) => {
-      // Approve leave
       const approved = await tx.leave.update({
         where: { id },
         data: {
@@ -293,7 +301,8 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
       } else {
         const current = new Date(leave.startDate);
         const attendanceRecords = [];
-        while (current <= leave.endDate) {
+        let dayCount = 0;
+        while (current <= leave.endDate && dayCount < 30) {
           attendanceRecords.push({
             employeeId: leave.employeeId,
             date: new Date(current),
@@ -304,55 +313,28 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
             isAbsence: false,
           });
           current.setDate(current.getDate() + 1);
+          dayCount++;
         }
         await tx.attendance.createMany({ data: attendanceRecords, skipDuplicates: true });
       }
 
+      // Deduct balance inside transaction using $executeRaw (safe parameterised binding).
+      // Float literal embedded via Prisma.raw to avoid PgBouncer binary float8 corruption;
+      // UUID is a regular bound parameter.
+      if (leave.leaveType === 'LOCAL') {
+        const rows = await tx.$executeRaw(
+          Prisma.sql`UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - ${Prisma.raw(String(deductDays))}::float8 WHERE id = ${leave.employeeId}::uuid`
+        );
+        if (rows === 0) throw new Error(`localLeaveBalance not updated — employeeId ${leave.employeeId} matched 0 rows`);
+      } else if (leave.leaveType === 'SICK') {
+        const rows = await tx.$executeRaw(
+          Prisma.sql`UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - ${Prisma.raw(String(deductDays))}::float8 WHERE id = ${leave.employeeId}::uuid`
+        );
+        if (rows === 0) throw new Error(`sickLeaveBalance not updated — employeeId ${leave.employeeId} matched 0 rows`);
+      }
+
       return approved;
     });
-
-    // Balance deduction OUTSIDE transaction — $executeRawUnsafe inside prisma.$transaction
-    // does not reliably execute via PgBouncer (different connection context).
-    //
-    // Use stored totalDays as the source of truth — it was patched via raw SQL after create
-    // so it holds the correct value (0.5 for half-days, N for multi-day).
-    // Only fall back to date/isHalfDay recomputation if totalDays is somehow zero.
-    const storedDays = Number(leave.totalDays);
-    const deductDays = storedDays > 0
-      ? storedDays
-      : leave.isHalfDay ? 0.5 : calculateDaysBetween(leave.startDate, leave.endDate);
-
-    console.log('[approveLeave] leave.id:', leave.id);
-    console.log('[approveLeave] leave.leaveType:', leave.leaveType, '| typeof:', typeof leave.leaveType);
-    console.log('[approveLeave] leave.isHalfDay:', leave.isHalfDay, '| typeof:', typeof leave.isHalfDay);
-    console.log('[approveLeave] leave.totalDays (DB stored):', leave.totalDays, '| Number(leave.totalDays):', storedDays);
-    console.log('[approveLeave] leave.startDate:', leave.startDate, '| leave.endDate:', leave.endDate);
-    console.log('[approveLeave] deductDays (final):', deductDays, '| String(deductDays):', String(deductDays));
-    console.log('[approveLeave] leave.employeeId:', leave.employeeId);
-
-    if (leave.leaveType === 'LOCAL') {
-      console.log('[approveLeave] Running LOCAL deduction SQL...');
-      const rowsAffected = await prisma.$executeRawUnsafe(
-        `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - ${Number(deductDays)}::float8 WHERE id = $1`,
-        leave.employeeId
-      );
-      console.log('[approveLeave] LOCAL deduction rows affected:', rowsAffected);
-      if (rowsAffected === 0) {
-        throw new Error(`Leave approved but localLeaveBalance not updated — employeeId ${leave.employeeId} matched 0 rows`);
-      }
-    } else if (leave.leaveType === 'SICK') {
-      console.log('[approveLeave] Running SICK deduction SQL...');
-      const rowsAffected = await prisma.$executeRawUnsafe(
-        `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - ${Number(deductDays)}::float8 WHERE id = $1`,
-        leave.employeeId
-      );
-      console.log('[approveLeave] SICK deduction rows affected:', rowsAffected);
-      if (rowsAffected === 0) {
-        throw new Error(`Leave approved but sickLeaveBalance not updated — employeeId ${leave.employeeId} matched 0 rows`);
-      }
-    } else {
-      console.log('[approveLeave] WARNING: leaveType did not match LOCAL or SICK — no deduction made. leaveType was:', JSON.stringify(leave.leaveType));
-    }
 
     // Create audit log
     await prisma.auditLog.create({
@@ -480,7 +462,6 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
       return sendError(res, `Insufficient sick leave balance. Available: ${employee.sickLeaveBalance} days`, 400);
     }
 
-    // Create urgent leave (auto-approved) — ORM only inside transaction (no raw SQL)
     const leave = await prisma.$transaction(async (tx) => {
       const urgentLeave = await tx.leave.create({
         data: {
@@ -510,7 +491,6 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
         },
       });
 
-      // Create attendance records
       if (isHalfDay) {
         await tx.attendance.upsert({
           where: { employeeId_date: { employeeId, date: start } },
@@ -534,7 +514,8 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
       } else {
         const current = new Date(start);
         const attendanceRecords = [];
-        while (current <= end) {
+        let dayCount = 0;
+        while (current <= end && dayCount < 30) {
           attendanceRecords.push({
             employeeId,
             date: new Date(current),
@@ -545,35 +526,33 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
             isAbsence: false,
           });
           current.setDate(current.getDate() + 1);
+          dayCount++;
         }
         await tx.attendance.createMany({ data: attendanceRecords, skipDuplicates: true });
       }
 
+      // Patch totalDays if fractional (float embedded via Prisma.raw for PgBouncer safety)
+      if (totalDays !== Math.floor(totalDays)) {
+        await tx.$executeRaw(
+          Prisma.sql`UPDATE leaves SET "totalDays" = ${Prisma.raw(String(totalDays))}::float8 WHERE id = ${urgentLeave.id}::uuid`
+        );
+      }
+
+      // Deduct balance inside transaction
+      if (leaveType === 'LOCAL') {
+        const rows = await tx.$executeRaw(
+          Prisma.sql`UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - ${Prisma.raw(String(totalDays))}::float8 WHERE id = ${employeeId}::uuid`
+        );
+        if (rows === 0) throw new Error(`Urgent leave: localLeaveBalance not updated — employeeId ${employeeId} matched 0 rows`);
+      } else if (leaveType === 'SICK') {
+        const rows = await tx.$executeRaw(
+          Prisma.sql`UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - ${Prisma.raw(String(totalDays))}::float8 WHERE id = ${employeeId}::uuid`
+        );
+        if (rows === 0) throw new Error(`Urgent leave: sickLeaveBalance not updated — employeeId ${employeeId} matched 0 rows`);
+      }
+
       return urgentLeave;
     });
-
-    // Float literal embedded to avoid PgBouncer float8 corruption; UUID bound as $1 (safe).
-    if (totalDays !== Math.floor(totalDays)) {
-      await prisma.$executeRawUnsafe(
-        `UPDATE leaves SET "totalDays" = ${Number(totalDays)}::float8 WHERE id = $1`,
-        leave.id
-      );
-    }
-
-    // Deduct leave balance OUTSIDE transaction — float embedded, UUID bound as $1
-    if (leaveType === 'LOCAL') {
-      const rows = await prisma.$executeRawUnsafe(
-        `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - ${Number(totalDays)}::float8 WHERE id = $1`,
-        employeeId
-      );
-      if (rows === 0) throw new Error(`Urgent leave created but localLeaveBalance not updated — employeeId ${employeeId} matched 0 rows`);
-    } else if (leaveType === 'SICK') {
-      const rows = await prisma.$executeRawUnsafe(
-        `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - ${Number(totalDays)}::float8 WHERE id = $1`,
-        employeeId
-      );
-      if (rows === 0) throw new Error(`Urgent leave created but sickLeaveBalance not updated — employeeId ${employeeId} matched 0 rows`);
-    }
 
     // Create audit log
     await prisma.auditLog.create({
@@ -622,24 +601,16 @@ export const cancelLeave = async (req: AuthRequest, res: Response) => {
 
     // If leave was approved, restore leave balance and delete attendance records
     if (leave.status === 'APPROVED') {
-      // Use stored totalDays as source of truth (patched correctly after create).
-      // Fall back to recomputation only if totalDays is zero.
-      const storedDays = Number(leave.totalDays);
-      const restoreDays = storedDays > 0
-        ? storedDays
-        : leave.isHalfDay ? 0.5 : calculateDaysBetween(leave.startDate, leave.endDate);
+      const restoreDays = getLeaveDays(leave);
 
-      // Balance restore — float embedded, UUID bound as $1
       if (leave.leaveType === 'LOCAL') {
-        const rows = await prisma.$executeRawUnsafe(
-          `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" + ${Number(restoreDays)}::float8 WHERE id = $1`,
-          leave.employeeId
+        const rows = await prisma.$executeRaw(
+          Prisma.sql`UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" + ${Prisma.raw(String(restoreDays))}::float8 WHERE id = ${leave.employeeId}::uuid`
         );
         if (rows === 0) throw new Error(`Cancel: localLeaveBalance not restored — employeeId ${leave.employeeId} matched 0 rows`);
       } else if (leave.leaveType === 'SICK') {
-        const rows = await prisma.$executeRawUnsafe(
-          `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" + ${Number(restoreDays)}::float8 WHERE id = $1`,
-          leave.employeeId
+        const rows = await prisma.$executeRaw(
+          Prisma.sql`UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" + ${Prisma.raw(String(restoreDays))}::float8 WHERE id = ${leave.employeeId}::uuid`
         );
         if (rows === 0) throw new Error(`Cancel: sickLeaveBalance not restored — employeeId ${leave.employeeId} matched 0 rows`);
       }

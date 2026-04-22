@@ -1,5 +1,4 @@
 import { Response } from 'express';
-import { Prisma } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth';
 import prisma from '../config/database';
 import { sendSuccess, sendError } from '../utils/response';
@@ -201,12 +200,6 @@ export const applyLeave = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    if (totalDays !== Math.floor(totalDays)) {
-      await prisma.$executeRaw(
-        Prisma.sql`UPDATE leaves SET "totalDays" = ${Prisma.raw(String(totalDays))}::float8 WHERE id = ${leave.id}::uuid`
-      );
-    }
-
     // Send email notification to admins/employers who have notifications enabled
     const managers = await prisma.user.findMany({
       where: { role: { in: ['ADMIN', 'EMPLOYER'] }, emailNotifications: true },
@@ -318,23 +311,20 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
         await tx.attendance.createMany({ data: attendanceRecords, skipDuplicates: true });
       }
 
+      if (leave.leaveType === 'LOCAL') {
+        await tx.employee.update({
+          where: { id: leave.employeeId },
+          data: { localLeaveBalance: { decrement: deductDays } },
+        });
+      } else if (leave.leaveType === 'SICK') {
+        await tx.employee.update({
+          where: { id: leave.employeeId },
+          data: { sickLeaveBalance: { decrement: deductDays } },
+        });
+      }
+
       return approved;
     });
-
-    // Deduct balance OUTSIDE transaction — $executeRaw inside an interactive prisma.$transaction
-    // callback does not work with PgBouncer in transaction mode.
-    // Float embedded via Prisma.raw (SQL literal, no binary encoding); UUID is a bound param.
-    if (leave.leaveType === 'LOCAL') {
-      const rows = await prisma.$executeRaw(
-        Prisma.sql`UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - ${Prisma.raw(String(deductDays))}::float8 WHERE id = ${leave.employeeId}::uuid`
-      );
-      if (rows === 0) throw new Error(`localLeaveBalance not updated — employeeId ${leave.employeeId} matched 0 rows`);
-    } else if (leave.leaveType === 'SICK') {
-      const rows = await prisma.$executeRaw(
-        Prisma.sql`UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - ${Prisma.raw(String(deductDays))}::float8 WHERE id = ${leave.employeeId}::uuid`
-      );
-      if (rows === 0) throw new Error(`sickLeaveBalance not updated — employeeId ${leave.employeeId} matched 0 rows`);
-    }
 
     // Create audit log
     await prisma.auditLog.create({
@@ -531,28 +521,20 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
         await tx.attendance.createMany({ data: attendanceRecords, skipDuplicates: true });
       }
 
+      if (leaveType === 'LOCAL') {
+        await tx.employee.update({
+          where: { id: employeeId },
+          data: { localLeaveBalance: { decrement: totalDays } },
+        });
+      } else if (leaveType === 'SICK') {
+        await tx.employee.update({
+          where: { id: employeeId },
+          data: { sickLeaveBalance: { decrement: totalDays } },
+        });
+      }
+
       return urgentLeave;
     });
-
-    // Patch totalDays and deduct balance OUTSIDE transaction — raw SQL inside interactive
-    // prisma.$transaction callbacks does not work with PgBouncer in transaction mode.
-    if (totalDays !== Math.floor(totalDays)) {
-      await prisma.$executeRaw(
-        Prisma.sql`UPDATE leaves SET "totalDays" = ${Prisma.raw(String(totalDays))}::float8 WHERE id = ${leave.id}::uuid`
-      );
-    }
-
-    if (leaveType === 'LOCAL') {
-      const rows = await prisma.$executeRaw(
-        Prisma.sql`UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - ${Prisma.raw(String(totalDays))}::float8 WHERE id = ${employeeId}::uuid`
-      );
-      if (rows === 0) throw new Error(`Urgent leave: localLeaveBalance not updated — employeeId ${employeeId} matched 0 rows`);
-    } else if (leaveType === 'SICK') {
-      const rows = await prisma.$executeRaw(
-        Prisma.sql`UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - ${Prisma.raw(String(totalDays))}::float8 WHERE id = ${employeeId}::uuid`
-      );
-      if (rows === 0) throw new Error(`Urgent leave: sickLeaveBalance not updated — employeeId ${employeeId} matched 0 rows`);
-    }
 
     // Create audit log
     await prisma.auditLog.create({
@@ -599,38 +581,32 @@ export const cancelLeave = async (req: AuthRequest, res: Response) => {
       return sendError(res, 'Cannot cancel rejected leave', 400);
     }
 
-    // If leave was approved, restore leave balance and delete attendance records
-    if (leave.status === 'APPROVED') {
-      const restoreDays = getLeaveDays(leave);
+    await prisma.$transaction(async (tx) => {
+      if (leave.status === 'APPROVED') {
+        const restoreDays = getLeaveDays(leave);
 
-      if (leave.leaveType === 'LOCAL') {
-        const rows = await prisma.$executeRaw(
-          Prisma.sql`UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" + ${Prisma.raw(String(restoreDays))}::float8 WHERE id = ${leave.employeeId}::uuid`
-        );
-        if (rows === 0) throw new Error(`Cancel: localLeaveBalance not restored — employeeId ${leave.employeeId} matched 0 rows`);
-      } else if (leave.leaveType === 'SICK') {
-        const rows = await prisma.$executeRaw(
-          Prisma.sql`UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" + ${Prisma.raw(String(restoreDays))}::float8 WHERE id = ${leave.employeeId}::uuid`
-        );
-        if (rows === 0) throw new Error(`Cancel: sickLeaveBalance not restored — employeeId ${leave.employeeId} matched 0 rows`);
+        if (leave.leaveType === 'LOCAL') {
+          await tx.employee.update({
+            where: { id: leave.employeeId },
+            data: { localLeaveBalance: { increment: restoreDays } },
+          });
+        } else if (leave.leaveType === 'SICK') {
+          await tx.employee.update({
+            where: { id: leave.employeeId },
+            data: { sickLeaveBalance: { increment: restoreDays } },
+          });
+        }
+
+        await tx.attendance.deleteMany({
+          where: {
+            employeeId: leave.employeeId,
+            date: { gte: leave.startDate, lte: leave.endDate },
+            isLeave: true,
+          },
+        });
       }
 
-      // Delete attendance records (ORM only)
-      await prisma.attendance.deleteMany({
-        where: {
-          employeeId: leave.employeeId,
-          date: {
-            gte: leave.startDate,
-            lte: leave.endDate,
-          },
-          isLeave: true,
-        },
-      });
-    }
-
-    // Delete the leave
-    await prisma.leave.delete({
-      where: { id },
+      await tx.leave.delete({ where: { id } });
     });
 
     return sendSuccess(res, null, 'Leave cancelled successfully');

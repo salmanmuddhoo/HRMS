@@ -337,6 +337,9 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
         leave.employeeId
       );
       console.log('[approveLeave] LOCAL deduction rows affected:', rowsAffected);
+      if (rowsAffected === 0) {
+        throw new Error(`Leave approved but localLeaveBalance not updated — employeeId ${leave.employeeId} matched 0 rows`);
+      }
     } else if (leave.leaveType === 'SICK') {
       console.log('[approveLeave] Running SICK deduction SQL...');
       const rowsAffected = await prisma.$executeRawUnsafe(
@@ -344,6 +347,9 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
         leave.employeeId
       );
       console.log('[approveLeave] SICK deduction rows affected:', rowsAffected);
+      if (rowsAffected === 0) {
+        throw new Error(`Leave approved but sickLeaveBalance not updated — employeeId ${leave.employeeId} matched 0 rows`);
+      }
     } else {
       console.log('[approveLeave] WARNING: leaveType did not match LOCAL or SICK — no deduction made. leaveType was:', JSON.stringify(leave.leaveType));
     }
@@ -556,15 +562,17 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
 
     // Deduct leave balance OUTSIDE transaction — float embedded, UUID bound as $1
     if (leaveType === 'LOCAL') {
-      await prisma.$executeRawUnsafe(
+      const rows = await prisma.$executeRawUnsafe(
         `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - ${Number(totalDays)}::float8 WHERE id = $1`,
         employeeId
       );
+      if (rows === 0) throw new Error(`Urgent leave created but localLeaveBalance not updated — employeeId ${employeeId} matched 0 rows`);
     } else if (leaveType === 'SICK') {
-      await prisma.$executeRawUnsafe(
+      const rows = await prisma.$executeRawUnsafe(
         `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - ${Number(totalDays)}::float8 WHERE id = $1`,
         employeeId
       );
+      if (rows === 0) throw new Error(`Urgent leave created but sickLeaveBalance not updated — employeeId ${employeeId} matched 0 rows`);
     }
 
     // Create audit log
@@ -623,15 +631,17 @@ export const cancelLeave = async (req: AuthRequest, res: Response) => {
 
       // Balance restore — float embedded, UUID bound as $1
       if (leave.leaveType === 'LOCAL') {
-        await prisma.$executeRawUnsafe(
+        const rows = await prisma.$executeRawUnsafe(
           `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" + ${Number(restoreDays)}::float8 WHERE id = $1`,
           leave.employeeId
         );
+        if (rows === 0) throw new Error(`Cancel: localLeaveBalance not restored — employeeId ${leave.employeeId} matched 0 rows`);
       } else if (leave.leaveType === 'SICK') {
-        await prisma.$executeRawUnsafe(
+        const rows = await prisma.$executeRawUnsafe(
           `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" + ${Number(restoreDays)}::float8 WHERE id = $1`,
           leave.employeeId
         );
+        if (rows === 0) throw new Error(`Cancel: sickLeaveBalance not restored — employeeId ${leave.employeeId} matched 0 rows`);
       }
 
       // Delete attendance records (ORM only)

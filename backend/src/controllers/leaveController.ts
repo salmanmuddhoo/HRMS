@@ -140,7 +140,7 @@ export const applyLeave = async (req: AuthRequest, res: Response) => {
     const totalDays = isHalfDay ? 0.5 : calculateDaysBetween(start, end);
 
     // Check leave balance
-    if (leaveType === 'LOCAL' && employee.localLeaveBalance < totalDays) {
+    if (leaveType === 'LOCAL' && Number(employee.localLeaveBalance) < totalDays) {
       return sendError(
         res,
         `Insufficient local leave balance. Available: ${employee.localLeaveBalance} days`,
@@ -148,7 +148,7 @@ export const applyLeave = async (req: AuthRequest, res: Response) => {
       );
     }
 
-    if (leaveType === 'SICK' && employee.sickLeaveBalance < totalDays) {
+    if (leaveType === 'SICK' && Number(employee.sickLeaveBalance) < totalDays) {
       return sendError(
         res,
         `Insufficient sick leave balance. Available: ${employee.sickLeaveBalance} days`,
@@ -461,10 +461,10 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
     }
 
     // Check leave balance
-    if (leaveType === 'LOCAL' && employee.localLeaveBalance < safeDays) {
+    if (leaveType === 'LOCAL' && Number(employee.localLeaveBalance) < safeDays) {
       return sendError(res, `Insufficient annual leave balance. Available: ${employee.localLeaveBalance} days`, 400);
     }
-    if (leaveType === 'SICK' && employee.sickLeaveBalance < safeDays) {
+    if (leaveType === 'SICK' && Number(employee.sickLeaveBalance) < safeDays) {
       return sendError(res, `Insufficient sick leave balance. Available: ${employee.sickLeaveBalance} days`, 400);
     }
 

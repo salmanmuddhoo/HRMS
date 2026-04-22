@@ -172,14 +172,14 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
       const absenceDays = attendance.filter((a) => a.isAbsence).length;
 
       // Calculate travelling allowance deduction (per day of absence)
-      const dailyTravellingAllowance = employee.travellingAllowance / workingDays;
+      const dailyTravellingAllowance = Number(employee.travellingAllowance) / workingDays;
       const travellingDeduction = dailyTravellingAllowance * absenceDays;
 
       // Calculate gross and net salary
       const grossSalary =
-        employee.baseSalary +
-        employee.travellingAllowance +
-        employee.otherAllowances;
+        Number(employee.baseSalary) +
+        Number(employee.travellingAllowance) +
+        Number(employee.otherAllowances);
       const totalDeductions = travellingDeduction;
       const netSalary = grossSalary - totalDeductions;
 
@@ -380,13 +380,13 @@ export const updatePayroll = async (req: AuthRequest, res: Response) => {
     // Recalculate if amounts changed
     const newBaseSalary = baseSalary
       ? parseFloat(baseSalary)
-      : payroll.baseSalary;
+      : Number(payroll.baseSalary);
     const newTravellingAllowance = travellingAllowance
       ? parseFloat(travellingAllowance)
-      : payroll.travellingAllowance;
+      : Number(payroll.travellingAllowance);
     const newOtherAllowances = otherAllowances
       ? parseFloat(otherAllowances)
-      : payroll.otherAllowances;
+      : Number(payroll.otherAllowances);
 
     const dailyTravellingAllowance =
       newTravellingAllowance / payroll.workingDays;

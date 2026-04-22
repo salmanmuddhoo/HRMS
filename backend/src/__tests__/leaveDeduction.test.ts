@@ -233,4 +233,17 @@ describe('approveLeave controller', () => {
     expect(prismaMock.$executeRawUnsafe).not.toHaveBeenCalled();
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
   });
+
+  it('returns 500 when $executeRawUnsafe updates 0 rows (employee not found)', async () => {
+    const leave = makeLeave({ leaveType: 'LOCAL', isHalfDay: false, totalDays: 1 });
+    prismaMock.leave.findUnique.mockResolvedValue(leave);
+    prismaMock.leave.update.mockResolvedValue({ ...leave, status: 'APPROVED' });
+    // Simulate the balance UPDATE matching 0 rows
+    prismaMock.$executeRawUnsafe.mockResolvedValue(0);
+
+    const res = makeRes();
+    await approveLeave(makeReq(), res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+  });
 });

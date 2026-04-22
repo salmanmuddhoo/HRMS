@@ -318,23 +318,23 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
         await tx.attendance.createMany({ data: attendanceRecords, skipDuplicates: true });
       }
 
-      // Deduct balance inside transaction using $executeRaw (safe parameterised binding).
-      // Float literal embedded via Prisma.raw to avoid PgBouncer binary float8 corruption;
-      // UUID is a regular bound parameter.
-      if (leave.leaveType === 'LOCAL') {
-        const rows = await tx.$executeRaw(
-          Prisma.sql`UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - ${Prisma.raw(String(deductDays))}::float8 WHERE id = ${leave.employeeId}::uuid`
-        );
-        if (rows === 0) throw new Error(`localLeaveBalance not updated — employeeId ${leave.employeeId} matched 0 rows`);
-      } else if (leave.leaveType === 'SICK') {
-        const rows = await tx.$executeRaw(
-          Prisma.sql`UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - ${Prisma.raw(String(deductDays))}::float8 WHERE id = ${leave.employeeId}::uuid`
-        );
-        if (rows === 0) throw new Error(`sickLeaveBalance not updated — employeeId ${leave.employeeId} matched 0 rows`);
-      }
-
       return approved;
     });
+
+    // Deduct balance OUTSIDE transaction — $executeRaw inside an interactive prisma.$transaction
+    // callback does not work with PgBouncer in transaction mode.
+    // Float embedded via Prisma.raw (SQL literal, no binary encoding); UUID is a bound param.
+    if (leave.leaveType === 'LOCAL') {
+      const rows = await prisma.$executeRaw(
+        Prisma.sql`UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - ${Prisma.raw(String(deductDays))}::float8 WHERE id = ${leave.employeeId}::uuid`
+      );
+      if (rows === 0) throw new Error(`localLeaveBalance not updated — employeeId ${leave.employeeId} matched 0 rows`);
+    } else if (leave.leaveType === 'SICK') {
+      const rows = await prisma.$executeRaw(
+        Prisma.sql`UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - ${Prisma.raw(String(deductDays))}::float8 WHERE id = ${leave.employeeId}::uuid`
+      );
+      if (rows === 0) throw new Error(`sickLeaveBalance not updated — employeeId ${leave.employeeId} matched 0 rows`);
+    }
 
     // Create audit log
     await prisma.auditLog.create({
@@ -531,28 +531,28 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
         await tx.attendance.createMany({ data: attendanceRecords, skipDuplicates: true });
       }
 
-      // Patch totalDays if fractional (float embedded via Prisma.raw for PgBouncer safety)
-      if (totalDays !== Math.floor(totalDays)) {
-        await tx.$executeRaw(
-          Prisma.sql`UPDATE leaves SET "totalDays" = ${Prisma.raw(String(totalDays))}::float8 WHERE id = ${urgentLeave.id}::uuid`
-        );
-      }
-
-      // Deduct balance inside transaction
-      if (leaveType === 'LOCAL') {
-        const rows = await tx.$executeRaw(
-          Prisma.sql`UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - ${Prisma.raw(String(totalDays))}::float8 WHERE id = ${employeeId}::uuid`
-        );
-        if (rows === 0) throw new Error(`Urgent leave: localLeaveBalance not updated — employeeId ${employeeId} matched 0 rows`);
-      } else if (leaveType === 'SICK') {
-        const rows = await tx.$executeRaw(
-          Prisma.sql`UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - ${Prisma.raw(String(totalDays))}::float8 WHERE id = ${employeeId}::uuid`
-        );
-        if (rows === 0) throw new Error(`Urgent leave: sickLeaveBalance not updated — employeeId ${employeeId} matched 0 rows`);
-      }
-
       return urgentLeave;
     });
+
+    // Patch totalDays and deduct balance OUTSIDE transaction — raw SQL inside interactive
+    // prisma.$transaction callbacks does not work with PgBouncer in transaction mode.
+    if (totalDays !== Math.floor(totalDays)) {
+      await prisma.$executeRaw(
+        Prisma.sql`UPDATE leaves SET "totalDays" = ${Prisma.raw(String(totalDays))}::float8 WHERE id = ${leave.id}::uuid`
+      );
+    }
+
+    if (leaveType === 'LOCAL') {
+      const rows = await prisma.$executeRaw(
+        Prisma.sql`UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - ${Prisma.raw(String(totalDays))}::float8 WHERE id = ${employeeId}::uuid`
+      );
+      if (rows === 0) throw new Error(`Urgent leave: localLeaveBalance not updated — employeeId ${employeeId} matched 0 rows`);
+    } else if (leaveType === 'SICK') {
+      const rows = await prisma.$executeRaw(
+        Prisma.sql`UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - ${Prisma.raw(String(totalDays))}::float8 WHERE id = ${employeeId}::uuid`
+      );
+      if (rows === 0) throw new Error(`Urgent leave: sickLeaveBalance not updated — employeeId ${employeeId} matched 0 rows`);
+    }
 
     // Create audit log
     await prisma.auditLog.create({

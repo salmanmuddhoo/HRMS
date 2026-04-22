@@ -60,22 +60,22 @@ describe('deductDays derivation (fallback)', () => {
 describe('deduction SQL construction', () => {
   const empId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 
-  it('LOCAL SQL embeds value as ::float8 literal, not CAST($1)', () => {
+  it('LOCAL SQL embeds float as ::float8 literal and binds UUID as $1', () => {
     const deductDays = 0.5;
-    const sql = `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - ${Number(deductDays)}::float8 WHERE id = '${empId}'`;
+    const sql = `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - ${Number(deductDays)}::float8 WHERE id = $1`;
     expect(sql).toContain('"localLeaveBalance"');
-    expect(sql).toContain(`'${empId}'`);
-    expect(sql).toContain('::float8');
-    expect(sql).not.toContain('$1');
+    expect(sql).toContain('0.5::float8');
+    expect(sql).toContain('WHERE id = $1');
+    expect(sql).not.toContain(`'${empId}'`); // UUID is a param, not a literal
     expect(sql).not.toContain('sick');
   });
 
-  it('SICK SQL targets sickLeaveBalance and embeds value as ::float8 literal', () => {
+  it('SICK SQL targets sickLeaveBalance, embeds float as literal, binds UUID as $1', () => {
     const deductDays = 1;
-    const sql = `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - ${Number(deductDays)}::float8 WHERE id = '${empId}'`;
+    const sql = `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - ${Number(deductDays)}::float8 WHERE id = $1`;
     expect(sql).toContain('"sickLeaveBalance"');
-    expect(sql).toContain('::float8');
-    expect(sql).not.toContain('$1');
+    expect(sql).toContain('1::float8');
+    expect(sql).toContain('WHERE id = $1');
     expect(sql).not.toContain('local');
   });
 });
@@ -139,10 +139,11 @@ describe('approveLeave controller', () => {
 
     await approveLeave(makeReq(), makeRes());
 
-    const [sql] = prismaMock.$executeRawUnsafe.mock.calls[0];
+    const [sql, idParam] = prismaMock.$executeRawUnsafe.mock.calls[0];
     expect(sql).toContain('"localLeaveBalance"');
     expect(sql).toContain('0.5::float8');
-    expect(sql).not.toContain('$1');
+    expect(sql).toContain('WHERE id = $1');
+    expect(idParam).toBe('emp-id-456');
   });
 
   it('uses stored totalDays 3 for a 3-day LOCAL leave', async () => {
@@ -158,10 +159,11 @@ describe('approveLeave controller', () => {
 
     await approveLeave(makeReq(), makeRes());
 
-    const [sql] = prismaMock.$executeRawUnsafe.mock.calls[0];
+    const [sql, idParam] = prismaMock.$executeRawUnsafe.mock.calls[0];
     expect(sql).toContain('"localLeaveBalance"');
     expect(sql).toContain('3::float8');
-    expect(sql).not.toContain('$1');
+    expect(sql).toContain('WHERE id = $1');
+    expect(idParam).toBe('emp-id-456');
   });
 
   it('uses stored totalDays 0.5 for a SICK half-day leave', async () => {
@@ -171,10 +173,11 @@ describe('approveLeave controller', () => {
 
     await approveLeave(makeReq(), makeRes());
 
-    const [sql] = prismaMock.$executeRawUnsafe.mock.calls[0];
+    const [sql, idParam] = prismaMock.$executeRawUnsafe.mock.calls[0];
     expect(sql).toContain('"sickLeaveBalance"');
     expect(sql).toContain('0.5::float8');
-    expect(sql).not.toContain('$1');
+    expect(sql).toContain('WHERE id = $1');
+    expect(idParam).toBe('emp-id-456');
   });
 
   // ── Fallback path: totalDays = 0 (corrupted), falls back to isHalfDay check ─
@@ -188,9 +191,11 @@ describe('approveLeave controller', () => {
 
     const calls: any[][] = prismaMock.$executeRawUnsafe.mock.calls;
     expect(calls.length).toBeGreaterThanOrEqual(1);
-    const [sql] = calls[0];
+    const [sql, idParam] = calls[0];
     expect(sql).toContain('"localLeaveBalance"');
     expect(sql).toContain('1::float8');
+    expect(sql).toContain('WHERE id = $1');
+    expect(idParam).toBe('emp-id-456');
   });
 
   it('falls back to 0.5::float8 via isHalfDay when totalDays is 0', async () => {
@@ -200,8 +205,10 @@ describe('approveLeave controller', () => {
 
     await approveLeave(makeReq(), makeRes());
 
-    const [sql] = prismaMock.$executeRawUnsafe.mock.calls[0];
+    const [sql, idParam] = prismaMock.$executeRawUnsafe.mock.calls[0];
     expect(sql).toContain('0.5::float8');
+    expect(sql).toContain('WHERE id = $1');
+    expect(idParam).toBe('emp-id-456');
   });
 
   it('targets sickLeaveBalance for SICK leave (fallback path)', async () => {
@@ -211,8 +218,10 @@ describe('approveLeave controller', () => {
 
     await approveLeave(makeReq(), makeRes());
 
-    const [sql] = prismaMock.$executeRawUnsafe.mock.calls[0];
+    const [sql, idParam] = prismaMock.$executeRawUnsafe.mock.calls[0];
     expect(sql).toContain('"sickLeaveBalance"');
+    expect(sql).toContain('WHERE id = $1');
+    expect(idParam).toBe('emp-id-456');
   });
 
   it('returns 400 and skips deduction when leave is already APPROVED', async () => {

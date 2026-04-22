@@ -112,13 +112,35 @@ const Leaves: React.FC = () => {
   const handleApprove = async (id: string) => {
     if (!window.confirm('Approve this leave request?')) return;
     setActionLoading(id);
+
+    const leaveBeingApproved = leaves.find(l => l.id === id);
+    console.log('[handleApprove] Approving leave:', {
+      id,
+      leaveType: leaveBeingApproved?.leaveType,
+      isHalfDay: leaveBeingApproved?.isHalfDay,
+      startDate: leaveBeingApproved?.startDate,
+      endDate: leaveBeingApproved?.endDate,
+      totalDays: leaveBeingApproved?.totalDays,
+      employeeId: leaveBeingApproved?.employee?.id,
+      employeeName: `${leaveBeingApproved?.employee?.firstName} ${leaveBeingApproved?.employee?.lastName}`,
+    });
+
     try {
       const res = await api.approveLeave(id);
+      console.log('[handleApprove] API response:', res);
       if ((res as any).success) {
+        console.log('[handleApprove] Leave approved. Updated leave data:', (res as any).data);
         showMsg('success', 'Leave approved successfully.');
         fetchLeaves();
+      } else {
+        console.warn('[handleApprove] API returned success=false:', res);
       }
     } catch (e: any) {
+      console.error('[handleApprove] Error approving leave:', {
+        status: e.response?.status,
+        data: e.response?.data,
+        message: e.message,
+      });
       showMsg('error', e.response?.data?.error || 'Failed to approve leave.');
     } finally {
       setActionLoading(null);
@@ -164,9 +186,20 @@ const Leaves: React.FC = () => {
     if (!addForEmpData.employeeId) { setError('Please select an employee.'); return; }
     setSubmitting(true);
     setError('');
+
+    console.log('[handleAddForEmpSubmit] Adding urgent leave:', {
+      employeeId: addForEmpData.employeeId,
+      leaveType: addForEmpData.leaveType,
+      isHalfDay: addForEmpData.isHalfDay,
+      startDate: addForEmpData.startDate,
+      endDate: addForEmpData.endDate,
+    });
+
     try {
       const res = await api.addUrgentLeave(addForEmpData);
+      console.log('[handleAddForEmpSubmit] API response:', res);
       if ((res as any).success) {
+        console.log('[handleAddForEmpSubmit] Urgent leave added. Data:', (res as any).data);
         showMsg('success', 'Leave added and balance adjusted.');
         setShowAddForEmpModal(false);
         setAddForEmpData({ employeeId: '', leaveType: 'LOCAL', startDate: '', endDate: '', reason: '', isHalfDay: false, halfDayPeriod: 'MORNING' });
@@ -174,6 +207,11 @@ const Leaves: React.FC = () => {
         fetchEmployees();
       }
     } catch (e: any) {
+      console.error('[handleAddForEmpSubmit] Error:', {
+        status: e.response?.status,
+        data: e.response?.data,
+        message: e.message,
+      });
       setError(e.response?.data?.error || e.response?.data?.message || 'Failed to add leave.');
     } finally {
       setSubmitting(false);

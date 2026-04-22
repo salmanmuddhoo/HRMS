@@ -41,333 +41,171 @@ export const generatePayslipPDF = async (
 ): Promise<string> => {
   return new Promise((resolve, reject) => {
     try {
-      // Create PDF document
-      const doc = new PDFDocument({ size: 'A4', margin: 50 });
+      const doc = new PDFDocument({ size: 'A4', margin: 30 });
 
-      // Ensure output directory exists
       const dir = path.dirname(outputPath);
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
 
-      // Pipe to file
       const stream = fs.createWriteStream(outputPath);
       doc.pipe(stream);
 
-      // Colors
-      const primaryColor = '#2c3e50';
-      const secondaryColor = '#34495e';
-      const accentColor = '#3498db';
+      const PRIMARY    = '#2c3e50';
+      const SECONDARY  = '#555555';
+      const ACCENT     = '#1a6fc4';
+      const PAGE_W     = doc.page.width;   // 595.28 pt (A4)
+      const L          = 45;               // left content edge
+      const R          = PAGE_W - 45;      // right content edge  (~550)
+      const ROW_H      = 17;              // standard row height
+      const C2_L       = 300;             // 2nd-column label x
+      const C2_V       = 390;             // 2nd-column value x
+      const AMT_X      = R - 110;         // amount box left edge
+      const AMT_W      = 110;             // amount box width (right-aligned)
 
-      // Logo — try backend/assets/logo.png (included via vercel.json includeFiles)
+      // ── Logo (centered) ────────────────────────────────────────────
       const logoPath = path.join(process.cwd(), 'backend', 'assets', 'logo.png');
       if (fs.existsSync(logoPath)) {
-        doc.image(logoPath, { width: 80, align: 'center' }).moveDown(0.5);
+        const logoW = 65;
+        doc.image(logoPath, (PAGE_W - logoW) / 2, doc.y, { width: logoW });
+        doc.moveDown(0.5);
       }
 
-      // Header
-      doc
-        .fontSize(24)
-        .fillColor(primaryColor)
+      // ── Title ──────────────────────────────────────────────────────
+      doc.font('Helvetica-Bold').fontSize(18).fillColor(PRIMARY)
         .text('PAYSLIP', { align: 'center' })
-        .moveDown(0.5);
+        .moveDown(0.2);
 
-      // Company Info
-      doc
-        .fontSize(10)
-        .fillColor(secondaryColor)
+      // ── Company info ───────────────────────────────────────────────
+      doc.font('Helvetica').fontSize(9).fillColor(SECONDARY)
         .text(data.company.name, { align: 'center' })
         .text(data.company.address, { align: 'center' })
-        .text(`${data.company.phone} | ${data.company.email}`, {
-          align: 'center',
-        })
-        .moveDown(1);
+        .text(`${data.company.phone}  |  ${data.company.email}`, { align: 'center' })
+        .moveDown(0.3);
 
-      // Pay Period
-      const monthNames = [
-        'January',
-        'February',
-        'March',
-        'April',
-        'May',
-        'June',
-        'July',
-        'August',
-        'September',
-        'October',
-        'November',
-        'December',
+      // ── Pay period ─────────────────────────────────────────────────
+      const MONTHS = [
+        'January','February','March','April','May','June',
+        'July','August','September','October','November','December',
       ];
+      doc.font('Helvetica-Bold').fontSize(11).fillColor(ACCENT)
+        .text(`Pay Period: ${MONTHS[data.payroll.month - 1]} ${data.payroll.year}`, { align: 'center' })
+        .moveDown(0.45);
 
-      doc
-        .fontSize(14)
-        .fillColor(accentColor)
-        .text(
-          `Pay Period: ${monthNames[data.payroll.month - 1]} ${
-            data.payroll.year
-          }`,
-          { align: 'center' }
-        )
-        .moveDown(1);
+      // ── Helpers ────────────────────────────────────────────────────
 
-      // Divider line
-      doc
-        .strokeColor('#bdc3c7')
-        .lineWidth(1)
-        .moveTo(50, doc.y)
-        .lineTo(545, doc.y)
-        .stroke()
-        .moveDown(1);
+      // Horizontal rule
+      const hr = (thick = false) => {
+        doc.strokeColor(thick ? PRIMARY : '#cccccc')
+          .lineWidth(thick ? 1.2 : 0.5)
+          .moveTo(L, doc.y).lineTo(R, doc.y).stroke()
+          .moveDown(0.35);
+      };
 
-      // Employee Details Section
-      doc
-        .fontSize(12)
-        .fillColor(primaryColor)
-        .text('Employee Details', { underline: true })
-        .moveDown(0.5);
+      // Section heading
+      const heading = (title: string) => {
+        doc.font('Helvetica-Bold').fontSize(10).fillColor(PRIMARY)
+          .text(title, L)
+          .moveDown(0.3);
+        doc.font('Helvetica');
+      };
 
-      const leftColumn = 50;
-      const rightColumn = 300;
-      let yPos = doc.y;
+      // Two-column info row (for Employee Details / Attendance)
+      const infoRow2 = (
+        l1: string, v1: string,
+        l2: string, v2: string,
+        y: number,
+      ) => {
+        doc.font('Helvetica').fontSize(9).fillColor(SECONDARY)
+          .text(l1,  L,    y, { width: 90 })
+          .text(v1,  L + 95, y, { width: 195 })
+          .text(l2,  C2_L, y, { width: 85 })
+          .text(v2,  C2_V, y, { width: R - C2_V });
+      };
 
-      doc
-        .fontSize(10)
-        .fillColor(secondaryColor)
-        .text('Employee ID:', leftColumn, yPos)
-        .text(data.employee.employeeId, leftColumn + 100, yPos);
+      // Amount row: label left, amount right-aligned
+      const amtRow = (label: string, amount: string, y: number, bold = false) => {
+        doc.font(bold ? 'Helvetica-Bold' : 'Helvetica')
+          .fontSize(bold ? 10 : 9)
+          .fillColor(bold ? PRIMARY : SECONDARY)
+          .text(label,  L,     y, { width: AMT_X - L - 10 })
+          .text(amount, AMT_X, y, { width: AMT_W, align: 'right' });
+        doc.font('Helvetica');
+      };
 
-      yPos += 20;
-      doc
-        .text('Name:', leftColumn, yPos)
-        .text(
-          `${data.employee.firstName} ${data.employee.lastName}`,
-          leftColumn + 100,
-          yPos
-        );
+      // ── Employee Details ───────────────────────────────────────────
+      hr();
+      heading('Employee Details');
+      let y = doc.y;
+      infoRow2('Employee ID:', data.employee.employeeId,
+               'Name:', `${data.employee.firstName} ${data.employee.lastName}`, y);
+      y += ROW_H;
+      infoRow2('Job Title:', data.employee.jobTitle,
+               'Email:', data.employee.email, y);
+      y += ROW_H + 8;
+      doc.y = y;
 
-      yPos += 20;
-      doc
-        .text('Department:', leftColumn, yPos)
-        .text(data.employee.department, leftColumn + 100, yPos);
+      // ── Attendance Summary ─────────────────────────────────────────
+      hr();
+      heading('Attendance Summary');
+      y = doc.y;
+      infoRow2('Working Days:', String(data.payroll.workingDays),
+               'Present Days:', String(data.payroll.presentDays), y);
+      y += ROW_H;
+      infoRow2('Leave Days:', String(data.payroll.leaveDays),
+               'Absence Days:', String(data.payroll.absenceDays), y);
+      y += ROW_H + 8;
+      doc.y = y;
 
-      yPos += 20;
-      doc
-        .text('Job Title:', leftColumn, yPos)
-        .text(data.employee.jobTitle, leftColumn + 100, yPos);
+      // ── Earnings ───────────────────────────────────────────────────
+      hr();
+      heading('Earnings');
+      y = doc.y;
+      amtRow('Base Salary:',            `Rs ${data.payroll.baseSalary.toFixed(2)}`,           y);
+      y += ROW_H;
+      amtRow('Travelling Allowance:',   `Rs ${data.payroll.travellingAllowance.toFixed(2)}`,  y);
+      y += ROW_H;
+      amtRow('Other Allowances:',       `Rs ${data.payroll.otherAllowances.toFixed(2)}`,      y);
+      y += ROW_H + 4;
+      amtRow('Gross Salary:',           `Rs ${data.payroll.grossSalary.toFixed(2)}`,          y, true);
+      y += ROW_H + 8;
+      doc.y = y;
 
-      yPos += 20;
-      doc
-        .text('Email:', leftColumn, yPos)
-        .text(data.employee.email, leftColumn + 100, yPos);
+      // ── Deductions ─────────────────────────────────────────────────
+      hr();
+      heading('Deductions');
+      y = doc.y;
+      amtRow('Travelling Allowance Deduction:', `Rs ${data.payroll.travellingDeduction.toFixed(2)}`, y);
+      y += ROW_H + 4;
+      amtRow('Total Deductions:', `Rs ${data.payroll.totalDeductions.toFixed(2)}`, y, true);
+      y += ROW_H + 8;
+      doc.y = y;
 
-      doc.moveDown(2);
+      // ── Net Salary ─────────────────────────────────────────────────
+      hr(true);
+      y = doc.y;
+      doc.font('Helvetica-Bold').fontSize(13).fillColor(ACCENT)
+        .text('NET SALARY:', L, y)
+        .text(`Rs ${data.payroll.netSalary.toFixed(2)}`, AMT_X, y, { width: AMT_W, align: 'right' });
+      doc.font('Helvetica');
+      y += 24;
+      doc.y = y + 8;
 
-      // Divider line
-      doc
-        .strokeColor('#bdc3c7')
-        .lineWidth(1)
-        .moveTo(50, doc.y)
-        .lineTo(545, doc.y)
-        .stroke()
-        .moveDown(1);
-
-      // Attendance Summary
-      doc
-        .fontSize(12)
-        .fillColor(primaryColor)
-        .text('Attendance Summary', { underline: true })
-        .moveDown(0.5);
-
-      yPos = doc.y;
-
-      doc
-        .fontSize(10)
-        .fillColor(secondaryColor)
-        .text('Working Days:', leftColumn, yPos)
-        .text(data.payroll.workingDays.toString(), leftColumn + 150, yPos);
-
-      doc
-        .text('Present Days:', rightColumn, yPos)
-        .text(data.payroll.presentDays.toString(), rightColumn + 100, yPos);
-
-      yPos += 20;
-      doc
-        .text('Leave Days:', leftColumn, yPos)
-        .text(data.payroll.leaveDays.toString(), leftColumn + 150, yPos);
-
-      doc
-        .text('Absence Days:', rightColumn, yPos)
-        .text(data.payroll.absenceDays.toString(), rightColumn + 100, yPos);
-
-      doc.moveDown(2);
-
-      // Divider line
-      doc
-        .strokeColor('#bdc3c7')
-        .lineWidth(1)
-        .moveTo(50, doc.y)
-        .lineTo(545, doc.y)
-        .stroke()
-        .moveDown(1);
-
-      // Earnings Section
-      doc
-        .fontSize(12)
-        .fillColor(primaryColor)
-        .text('Earnings', { underline: true })
-        .moveDown(0.5);
-
-      yPos = doc.y;
-
-      doc
-        .fontSize(10)
-        .fillColor(secondaryColor)
-        .text('Base Salary:', leftColumn, yPos)
-        .text(
-          `$${data.payroll.baseSalary.toFixed(2)}`,
-          leftColumn + 150,
-          yPos,
-          { align: 'right', width: 100 }
-        );
-
-      yPos += 20;
-      doc
-        .text('Travelling Allowance:', leftColumn, yPos)
-        .text(
-          `$${data.payroll.travellingAllowance.toFixed(2)}`,
-          leftColumn + 150,
-          yPos,
-          { align: 'right', width: 100 }
-        );
-
-      yPos += 20;
-      doc
-        .text('Other Allowances:', leftColumn, yPos)
-        .text(
-          `$${data.payroll.otherAllowances.toFixed(2)}`,
-          leftColumn + 150,
-          yPos,
-          { align: 'right', width: 100 }
-        );
-
-      yPos += 30;
-      doc
-        .fontSize(11)
-        .fillColor(primaryColor)
-        .text('Gross Salary:', leftColumn, yPos)
-        .text(
-          `$${data.payroll.grossSalary.toFixed(2)}`,
-          leftColumn + 150,
-          yPos,
-          { align: 'right', width: 100 }
-        );
-
-      doc.moveDown(2);
-
-      // Divider line
-      doc
-        .strokeColor('#bdc3c7')
-        .lineWidth(1)
-        .moveTo(50, doc.y)
-        .lineTo(545, doc.y)
-        .stroke()
-        .moveDown(1);
-
-      // Deductions Section
-      doc
-        .fontSize(12)
-        .fillColor(primaryColor)
-        .text('Deductions', { underline: true })
-        .moveDown(0.5);
-
-      yPos = doc.y;
-
-      doc
-        .fontSize(10)
-        .fillColor(secondaryColor)
-        .text('Travelling Allowance Deduction:', leftColumn, yPos)
-        .text(
-          `$${data.payroll.travellingDeduction.toFixed(2)}`,
-          leftColumn + 200,
-          yPos,
-          { align: 'right', width: 100 }
-        );
-
-      yPos += 30;
-      doc
-        .fontSize(11)
-        .fillColor(primaryColor)
-        .text('Total Deductions:', leftColumn, yPos)
-        .text(
-          `$${data.payroll.totalDeductions.toFixed(2)}`,
-          leftColumn + 200,
-          yPos,
-          { align: 'right', width: 100 }
-        );
-
-      doc.moveDown(2);
-
-      // Divider line
-      doc
-        .strokeColor('#bdc3c7')
-        .lineWidth(2)
-        .moveTo(50, doc.y)
-        .lineTo(545, doc.y)
-        .stroke()
-        .moveDown(1);
-
-      // Net Salary (highlighted)
-      doc
-        .fontSize(16)
-        .fillColor(accentColor)
-        .text('NET SALARY:', leftColumn, doc.y)
-        .fontSize(16)
-        .text(
-          `$${data.payroll.netSalary.toFixed(2)}`,
-          leftColumn + 150,
-          doc.y - 16,
-          { align: 'right', width: 150 }
-        );
-
-      doc.moveDown(3);
-
-      // Divider line
-      doc
-        .strokeColor('#bdc3c7')
-        .lineWidth(1)
-        .moveTo(50, doc.y)
-        .lineTo(545, doc.y)
-        .stroke()
-        .moveDown(1);
-
-      // Footer
-      doc
-        .fontSize(8)
-        .fillColor('#7f8c8d')
-        .text(
-          'This is a system-generated payslip and does not require a signature.',
-          { align: 'center' }
-        )
-        .moveDown(0.5)
+      // ── Footer ─────────────────────────────────────────────────────
+      hr();
+      doc.font('Helvetica').fontSize(7).fillColor('#999999')
+        .text('This is a system-generated payslip and does not require a signature.', { align: 'center' })
+        .moveDown(0.2)
         .text(
           `Generated on: ${new Date().toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
+            year: 'numeric', month: 'long', day: 'numeric',
           })}`,
           { align: 'center' }
         );
 
-      // Finalize PDF
       doc.end();
-
-      stream.on('finish', () => {
-        resolve(outputPath);
-      });
-
-      stream.on('error', (error) => {
-        reject(error);
-      });
+      stream.on('finish', () => resolve(outputPath));
+      stream.on('error', reject);
     } catch (error) {
       reject(error);
     }

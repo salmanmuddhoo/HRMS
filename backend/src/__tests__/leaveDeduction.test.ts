@@ -32,53 +32,50 @@ describe('calculateDaysBetween', () => {
 });
 
 // ---------------------------------------------------------------------------
-// deductDays derivation (mirrors approveLeave logic)
+// deductDays derivation (fallback logic mirrors approveLeave when totalDays=0)
 // ---------------------------------------------------------------------------
-describe('deductDays derivation', () => {
+describe('deductDays derivation (fallback)', () => {
   const derive = (isHalfDay: boolean, start: Date, end: Date) =>
     isHalfDay ? 0.5 : calculateDaysBetween(start, end);
 
-  it('returns 0.5 for half-day regardless of stored totalDays', () => {
+  it('returns 0.5 for half-day', () => {
     const d = new Date('2024-06-10');
     expect(derive(true, d, d)).toBe(0.5);
   });
 
-  it('returns 1 for a full single-day leave (not corrupted by stored 0)', () => {
+  it('returns 1 for a full single-day leave', () => {
     const d = new Date('2024-06-10');
     expect(derive(false, d, d)).toBe(1);
   });
 
-  it('never returns 0 even when stored totalDays would be 0', () => {
+  it('never returns 0', () => {
     const d = new Date('2024-06-10');
-    // isHalfDay=false, but even if DB stored totalDays=0, we recalculate from dates
     expect(derive(false, d, d)).toBeGreaterThan(0);
-  });
-
-  it('String() of deductDays is always a valid number string', () => {
-    const d = new Date('2024-06-10');
-    expect(String(derive(true, d, d))).toBe('0.5');
-    expect(String(derive(false, d, d))).toBe('1');
-    expect(Number(String(derive(false, d, d)))).not.toBeNaN();
   });
 });
 
 // ---------------------------------------------------------------------------
-// SQL construction checks
+// SQL construction — values now embedded as literals (no $1 binding)
 // ---------------------------------------------------------------------------
 describe('deduction SQL construction', () => {
   const empId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 
-  it('LOCAL SQL targets localLeaveBalance and not sickLeaveBalance', () => {
-    const sql = `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - CAST($1 AS float8) WHERE id = '${empId}'`;
+  it('LOCAL SQL embeds value as ::float8 literal, not CAST($1)', () => {
+    const deductDays = 0.5;
+    const sql = `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - ${Number(deductDays)}::float8 WHERE id = '${empId}'`;
     expect(sql).toContain('"localLeaveBalance"');
     expect(sql).toContain(`'${empId}'`);
-    expect(sql).toContain('CAST($1 AS float8)');
+    expect(sql).toContain('::float8');
+    expect(sql).not.toContain('$1');
     expect(sql).not.toContain('sick');
   });
 
-  it('SICK SQL targets sickLeaveBalance and not localLeaveBalance', () => {
-    const sql = `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - CAST($1 AS float8) WHERE id = '${empId}'`;
+  it('SICK SQL targets sickLeaveBalance and embeds value as ::float8 literal', () => {
+    const deductDays = 1;
+    const sql = `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - ${Number(deductDays)}::float8 WHERE id = '${empId}'`;
     expect(sql).toContain('"sickLeaveBalance"');
+    expect(sql).toContain('::float8');
+    expect(sql).not.toContain('$1');
     expect(sql).not.toContain('local');
   });
 });
@@ -133,48 +130,22 @@ describe('approveLeave controller', () => {
     prismaMock.attendance.upsert.mockResolvedValue({});
   });
 
-  // ── Fallback path (totalDays = 0, corrupted) ──────────────────────────────
+  // ── Primary path: totalDays correctly stored ──────────────────────────────
 
-  it('falls back to 1-day deduction via date calculation when totalDays is 0 (full-day LOCAL)', async () => {
-    const leave = makeLeave({ leaveType: 'LOCAL', isHalfDay: false, totalDays: 0 });
-    prismaMock.leave.findUnique.mockResolvedValue(leave);
-    prismaMock.leave.update.mockResolvedValue({ ...leave, status: 'APPROVED' });
-
-    await approveLeave(makeReq(), makeRes());
-
-    const calls: any[][] = prismaMock.$executeRawUnsafe.mock.calls;
-    expect(calls.length).toBeGreaterThanOrEqual(1);
-    const [sql, param] = calls[0];
-    expect(sql).toContain('"localLeaveBalance"');
-    expect(param).toBe('1');
-  });
-
-  it('falls back to 0.5 via isHalfDay when totalDays is 0 (corrupted half-day)', async () => {
-    const leave = makeLeave({ leaveType: 'LOCAL', isHalfDay: true, totalDays: 0 });
-    prismaMock.leave.findUnique.mockResolvedValue(leave);
-    prismaMock.leave.update.mockResolvedValue({ ...leave, status: 'APPROVED' });
-
-    await approveLeave(makeReq(), makeRes());
-
-    const [, param] = prismaMock.$executeRawUnsafe.mock.calls[0];
-    expect(param).toBe('0.5');
-  });
-
-  // ── Primary path (totalDays correctly stored) ─────────────────────────────
-
-  it('uses stored totalDays 0.5 directly for a half-day leave', async () => {
+  it('uses stored totalDays 0.5 directly for a LOCAL half-day leave', async () => {
     const leave = makeLeave({ leaveType: 'LOCAL', isHalfDay: true, totalDays: 0.5 });
     prismaMock.leave.findUnique.mockResolvedValue(leave);
     prismaMock.leave.update.mockResolvedValue({ ...leave, status: 'APPROVED' });
 
     await approveLeave(makeReq(), makeRes());
 
-    const [sql, param] = prismaMock.$executeRawUnsafe.mock.calls[0];
+    const [sql] = prismaMock.$executeRawUnsafe.mock.calls[0];
     expect(sql).toContain('"localLeaveBalance"');
-    expect(param).toBe('0.5');
+    expect(sql).toContain('0.5::float8');
+    expect(sql).not.toContain('$1');
   });
 
-  it('uses stored totalDays 3 directly for a 3-day leave', async () => {
+  it('uses stored totalDays 3 for a 3-day LOCAL leave', async () => {
     const leave = makeLeave({
       leaveType: 'LOCAL',
       isHalfDay: false,
@@ -187,24 +158,53 @@ describe('approveLeave controller', () => {
 
     await approveLeave(makeReq(), makeRes());
 
-    const [sql, param] = prismaMock.$executeRawUnsafe.mock.calls[0];
+    const [sql] = prismaMock.$executeRawUnsafe.mock.calls[0];
     expect(sql).toContain('"localLeaveBalance"');
-    expect(param).toBe('3');
+    expect(sql).toContain('3::float8');
+    expect(sql).not.toContain('$1');
   });
 
-  it('uses stored totalDays 0.5 for SICK half-day and targets sickLeaveBalance', async () => {
+  it('uses stored totalDays 0.5 for a SICK half-day leave', async () => {
     const leave = makeLeave({ leaveType: 'SICK', isHalfDay: true, totalDays: 0.5 });
     prismaMock.leave.findUnique.mockResolvedValue(leave);
     prismaMock.leave.update.mockResolvedValue({ ...leave, status: 'APPROVED' });
 
     await approveLeave(makeReq(), makeRes());
 
-    const [sql, param] = prismaMock.$executeRawUnsafe.mock.calls[0];
+    const [sql] = prismaMock.$executeRawUnsafe.mock.calls[0];
     expect(sql).toContain('"sickLeaveBalance"');
-    expect(param).toBe('0.5');
+    expect(sql).toContain('0.5::float8');
+    expect(sql).not.toContain('$1');
   });
 
-  it('calls $executeRawUnsafe with sickLeaveBalance for SICK leave (fallback path)', async () => {
+  // ── Fallback path: totalDays = 0 (corrupted), falls back to isHalfDay check ─
+
+  it('falls back to 1::float8 for full-day LOCAL when totalDays is 0', async () => {
+    const leave = makeLeave({ leaveType: 'LOCAL', isHalfDay: false, totalDays: 0 });
+    prismaMock.leave.findUnique.mockResolvedValue(leave);
+    prismaMock.leave.update.mockResolvedValue({ ...leave, status: 'APPROVED' });
+
+    await approveLeave(makeReq(), makeRes());
+
+    const calls: any[][] = prismaMock.$executeRawUnsafe.mock.calls;
+    expect(calls.length).toBeGreaterThanOrEqual(1);
+    const [sql] = calls[0];
+    expect(sql).toContain('"localLeaveBalance"');
+    expect(sql).toContain('1::float8');
+  });
+
+  it('falls back to 0.5::float8 via isHalfDay when totalDays is 0', async () => {
+    const leave = makeLeave({ leaveType: 'LOCAL', isHalfDay: true, totalDays: 0 });
+    prismaMock.leave.findUnique.mockResolvedValue(leave);
+    prismaMock.leave.update.mockResolvedValue({ ...leave, status: 'APPROVED' });
+
+    await approveLeave(makeReq(), makeRes());
+
+    const [sql] = prismaMock.$executeRawUnsafe.mock.calls[0];
+    expect(sql).toContain('0.5::float8');
+  });
+
+  it('targets sickLeaveBalance for SICK leave (fallback path)', async () => {
     const leave = makeLeave({ leaveType: 'SICK', isHalfDay: false, totalDays: 0 });
     prismaMock.leave.findUnique.mockResolvedValue(leave);
     prismaMock.leave.update.mockResolvedValue({ ...leave, status: 'APPROVED' });

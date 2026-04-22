@@ -190,10 +190,12 @@ export const applyLeave = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // PgBouncer corrupts binary float8 encoding — embed value as literal (no binding)
+    // Float literal embedded (no binding) to avoid PgBouncer float8 corruption.
+    // UUID bound as $1 (text param — safe with PgBouncer).
     if (totalDays !== Math.floor(totalDays)) {
       await prisma.$executeRawUnsafe(
-        `UPDATE leaves SET "totalDays" = ${Number(totalDays)}::float8 WHERE id = '${leave.id}'`
+        `UPDATE leaves SET "totalDays" = ${Number(totalDays)}::float8 WHERE id = $1`,
+        leave.id
       );
     }
 
@@ -331,13 +333,15 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
     if (leave.leaveType === 'LOCAL') {
       console.log('[approveLeave] Running LOCAL deduction SQL...');
       const rowsAffected = await prisma.$executeRawUnsafe(
-        `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - ${Number(deductDays)}::float8 WHERE id = '${leave.employeeId}'`
+        `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - ${Number(deductDays)}::float8 WHERE id = $1`,
+        leave.employeeId
       );
       console.log('[approveLeave] LOCAL deduction rows affected:', rowsAffected);
     } else if (leave.leaveType === 'SICK') {
       console.log('[approveLeave] Running SICK deduction SQL...');
       const rowsAffected = await prisma.$executeRawUnsafe(
-        `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - ${Number(deductDays)}::float8 WHERE id = '${leave.employeeId}'`
+        `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - ${Number(deductDays)}::float8 WHERE id = $1`,
+        leave.employeeId
       );
       console.log('[approveLeave] SICK deduction rows affected:', rowsAffected);
     } else {
@@ -542,21 +546,24 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
       return urgentLeave;
     });
 
-    // PgBouncer fix: embed value as literal (no binding) to avoid float8 corruption
+    // Float literal embedded to avoid PgBouncer float8 corruption; UUID bound as $1 (safe).
     if (totalDays !== Math.floor(totalDays)) {
       await prisma.$executeRawUnsafe(
-        `UPDATE leaves SET "totalDays" = ${Number(totalDays)}::float8 WHERE id = '${leave.id}'`
+        `UPDATE leaves SET "totalDays" = ${Number(totalDays)}::float8 WHERE id = $1`,
+        leave.id
       );
     }
 
-    // Deduct leave balance OUTSIDE transaction — embed value as literal, no CAST($1)
+    // Deduct leave balance OUTSIDE transaction — float embedded, UUID bound as $1
     if (leaveType === 'LOCAL') {
       await prisma.$executeRawUnsafe(
-        `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - ${Number(totalDays)}::float8 WHERE id = '${employeeId}'`
+        `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" - ${Number(totalDays)}::float8 WHERE id = $1`,
+        employeeId
       );
     } else if (leaveType === 'SICK') {
       await prisma.$executeRawUnsafe(
-        `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - ${Number(totalDays)}::float8 WHERE id = '${employeeId}'`
+        `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" - ${Number(totalDays)}::float8 WHERE id = $1`,
+        employeeId
       );
     }
 
@@ -614,14 +621,16 @@ export const cancelLeave = async (req: AuthRequest, res: Response) => {
         ? storedDays
         : leave.isHalfDay ? 0.5 : calculateDaysBetween(leave.startDate, leave.endDate);
 
-      // Balance restore OUTSIDE transaction — embed value as literal, no CAST($1)
+      // Balance restore — float embedded, UUID bound as $1
       if (leave.leaveType === 'LOCAL') {
         await prisma.$executeRawUnsafe(
-          `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" + ${Number(restoreDays)}::float8 WHERE id = '${leave.employeeId}'`
+          `UPDATE employees SET "localLeaveBalance" = "localLeaveBalance" + ${Number(restoreDays)}::float8 WHERE id = $1`,
+          leave.employeeId
         );
       } else if (leave.leaveType === 'SICK') {
         await prisma.$executeRawUnsafe(
-          `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" + ${Number(restoreDays)}::float8 WHERE id = '${leave.employeeId}'`
+          `UPDATE employees SET "sickLeaveBalance" = "sickLeaveBalance" + ${Number(restoreDays)}::float8 WHERE id = $1`,
+          leave.employeeId
         );
       }
 

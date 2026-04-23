@@ -140,8 +140,8 @@ export const createEmployee = async (req: AuthRequest, res: Response) => {
         baseSalary: parseFloat(baseSalary),
         travellingAllowance: parseFloat(travellingAllowance || 0),
         otherAllowances: parseFloat(otherAllowances || 0),
-        localLeaveBalance: parseInt(localLeaveBalance || 0),
-        sickLeaveBalance: parseInt(sickLeaveBalance || 0),
+        localLeaveBalance: parseFloat(localLeaveBalance || 0),
+        sickLeaveBalance: parseFloat(sickLeaveBalance || 0),
         status: 'ACTIVE',
       },
       include: {
@@ -187,47 +187,23 @@ export const updateEmployee = async (req: AuthRequest, res: Response) => {
     });
     if (!employee) return sendError(res, 'Employee not found', 404);
 
-    // Build dynamic raw SQL — UUID embedded as literal, floats as text params to avoid PgBouncer 22P03
-    const sets: string[] = [];
-    const vals: string[] = [];
-    const p = () => `$${vals.length + 1}`;
+    const data: any = {};
+    if (firstName) data.firstName = firstName;
+    if (lastName) data.lastName = lastName;
+    if (phone !== undefined) data.phone = phone;
+    if (department) data.department = department;
+    if (jobTitle) data.jobTitle = jobTitle;
+    if (joiningDate) data.joiningDate = new Date(joiningDate);
+    if (status) data.status = status;
+    const parseDecimal = (v: any) => (v !== undefined && v !== null && v !== '') ? parseFloat(v) : undefined;
+    const bs = parseDecimal(baseSalary); if (bs !== undefined && !isNaN(bs)) data.baseSalary = bs;
+    const ta = parseDecimal(travellingAllowance); if (ta !== undefined && !isNaN(ta)) data.travellingAllowance = ta;
+    const oa = parseDecimal(otherAllowances); if (oa !== undefined && !isNaN(oa)) data.otherAllowances = oa;
+    const llb = parseDecimal(localLeaveBalance); if (llb !== undefined && !isNaN(llb)) data.localLeaveBalance = llb;
+    const slb = parseDecimal(sickLeaveBalance); if (slb !== undefined && !isNaN(slb)) data.sickLeaveBalance = slb;
 
-    const addStr = (col: string, val: any, skipEmpty = false) => {
-      if (val === undefined) return;
-      if (skipEmpty && !val) return;
-      sets.push(`"${col}" = ${p()}`);
-      vals.push(val ?? null);
-    };
-    const addFloat = (col: string, raw: any) => {
-      const n = (raw !== '' && raw !== null && raw !== undefined) ? parseFloat(raw) : NaN;
-      if (isNaN(n)) return;
-      sets.push(`"${col}" = CAST(${p()} AS float8)`);
-      vals.push(String(n));
-    };
-    const addEnum = (col: string, enumType: string, val: any) => {
-      if (!val) return;
-      sets.push(`"${col}" = CAST(${p()} AS "${enumType}")`);
-      vals.push(val);
-    };
-
-    addStr('firstName', firstName, true);
-    addStr('lastName', lastName, true);
-    addStr('phone', phone);
-    addStr('department', department, true);
-    addStr('jobTitle', jobTitle, true);
-    if (joiningDate) { sets.push(`"joiningDate" = CAST(${p()} AS timestamptz)`); vals.push(new Date(joiningDate).toISOString()); }
-    addEnum('status', 'EmploymentStatus', status);
-    addFloat('baseSalary', baseSalary);
-    addFloat('travellingAllowance', travellingAllowance);
-    addFloat('otherAllowances', otherAllowances);
-    addFloat('localLeaveBalance', localLeaveBalance);
-    addFloat('sickLeaveBalance', sickLeaveBalance);
-
-    if (sets.length > 0) {
-      await prisma.$executeRawUnsafe(
-        `UPDATE employees SET ${sets.join(', ')} WHERE id = '${id}'`,
-        ...vals
-      );
+    if (Object.keys(data).length > 0) {
+      await prisma.employee.update({ where: { id }, data });
     }
 
     const updated = await prisma.employee.findUnique({

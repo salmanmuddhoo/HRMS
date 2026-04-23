@@ -215,7 +215,7 @@ export const applyLeave = async (req: AuthRequest, res: Response) => {
         endDate: end.toLocaleDateString(),
         totalDays,
         reason,
-      }).catch(() => {});
+      }).catch((err: any) => console.error('[Email] Notification failed:', err?.message || err));
     }
 
     return sendSuccess(res, leave, 'Leave application submitted successfully', 201);
@@ -355,7 +355,7 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
         startDate: leave.startDate.toLocaleDateString(),
         endDate: leave.endDate.toLocaleDateString(),
         status: 'APPROVED',
-      }).catch(() => {});
+      }).catch((err: any) => console.error('[Email] Notification failed:', err?.message || err));
     }
 
     return sendSuccess(res, updatedLeave, 'Leave approved successfully');
@@ -425,7 +425,7 @@ export const rejectLeave = async (req: AuthRequest, res: Response) => {
           endDate: leave.endDate.toLocaleDateString(),
           status: 'REJECTED',
           rejectionReason,
-        }).catch(() => {});
+        }).catch((err: any) => console.error('[Email] Notification failed:', err?.message || err));
       }
     }
 

@@ -509,6 +509,7 @@ const EmployeeForm: React.FC = () => {
                     value={formData.localLeaveBalance}
                     onChange={handleChange}
                     min="0"
+                    step="0.5"
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
                   />
                 </div>
@@ -521,6 +522,7 @@ const EmployeeForm: React.FC = () => {
                     value={formData.sickLeaveBalance}
                     onChange={handleChange}
                     min="0"
+                    step="0.5"
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
                   />
                 </div>

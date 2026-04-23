@@ -168,7 +168,7 @@ const Dashboard: React.FC = () => {
                       <dl>
                         <dt className="text-sm font-medium text-gray-500 truncate">Monthly Payroll</dt>
                         <dd className="text-lg font-semibold text-gray-900">
-                          ${stats.currentMonthPayroll.totalAmount.toFixed(2)}
+                          Rs {stats.currentMonthPayroll.totalAmount.toFixed(2)}
                         </dd>
                       </dl>
                     </div>

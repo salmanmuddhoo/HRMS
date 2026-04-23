@@ -5,6 +5,7 @@ class EmailService {
 
   private getTransporter(): nodemailer.Transporter | null {
     if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASSWORD) {
+      console.warn('[EmailService] SMTP not configured — skipping email (set SMTP_HOST, SMTP_USER, SMTP_PASSWORD)');
       return null;
     }
     if (!this.transporter) {

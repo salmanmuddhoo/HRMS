@@ -22,7 +22,7 @@ router.get('/:id', getHolidayById);
 
 router.post(
   '/',
-  authorize('ADMIN', 'EMPLOYER'),
+  authorize('ADMIN', 'EMPLOYER', 'DIRECTOR'),
   validate([
     body('name').notEmpty().withMessage('Holiday name is required'),
     body('date').isISO8601().withMessage('Valid date is required'),
@@ -32,7 +32,7 @@ router.post(
 
 router.put(
   '/:id',
-  authorize('ADMIN', 'EMPLOYER'),
+  authorize('ADMIN', 'EMPLOYER', 'DIRECTOR'),
   validate([
     body('name').optional().notEmpty(),
     body('date').optional().isISO8601(),
@@ -40,6 +40,6 @@ router.put(
   updateHoliday
 );
 
-router.delete('/:id', authorize('ADMIN', 'EMPLOYER'), deleteHoliday);
+router.delete('/:id', authorize('ADMIN', 'EMPLOYER', 'DIRECTOR'), deleteHoliday);
 
 export default router;

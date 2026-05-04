@@ -13,8 +13,8 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/dashboard', getDashboardStats);
-router.get('/leave', authorize('ADMIN', 'EMPLOYER'), getLeaveReport);
-router.get('/attendance', authorize('ADMIN', 'EMPLOYER'), getAttendanceReport);
-router.get('/payroll', authorize('ADMIN', 'EMPLOYER'), getPayrollReport);
+router.get('/leave', authorize('ADMIN', 'EMPLOYER', 'DIRECTOR'), getLeaveReport);
+router.get('/attendance', authorize('ADMIN', 'EMPLOYER', 'DIRECTOR'), getAttendanceReport);
+router.get('/payroll', authorize('ADMIN', 'EMPLOYER', 'DIRECTOR', 'TREASURER', 'SECRETARY'), getPayrollReport);
 
 export default router;

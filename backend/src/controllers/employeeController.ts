@@ -76,6 +76,16 @@ export const getEmployeeById = async (req: AuthRequest, res: Response) => {
   }
 };
 
+function proratedLeave(annualDays: number, joiningDate: Date): number {
+  const today = new Date();
+  const yearStart = new Date(today.getFullYear(), 0, 1);
+  const yearEnd = new Date(today.getFullYear(), 11, 31);
+  if (joiningDate <= yearStart) return annualDays;
+  if (joiningDate > yearEnd) return 0;
+  const remainingMonths = 12 - joiningDate.getMonth();
+  return Math.ceil((annualDays / 12) * remainingMonths);
+}
+
 export const createEmployee = async (req: AuthRequest, res: Response) => {
   try {
     const {
@@ -92,6 +102,7 @@ export const createEmployee = async (req: AuthRequest, res: Response) => {
       otherAllowances,
       localLeaveBalance,
       sickLeaveBalance,
+      useProration,
       password,
       role,
     } = req.body;
@@ -125,6 +136,30 @@ export const createEmployee = async (req: AuthRequest, res: Response) => {
       },
     });
 
+    // Determine leave balances — prorate from defaults when not set manually
+    const joiningDateObj = new Date(joiningDate);
+    let finalLocalLeave: number;
+    let finalSickLeave: number;
+
+    if (localLeaveBalance !== null && localLeaveBalance !== undefined && localLeaveBalance !== '') {
+      finalLocalLeave = parseFloat(localLeaveBalance);
+      finalSickLeave = parseFloat(sickLeaveBalance || 0);
+    } else {
+      const [localCfg, sickCfg] = await Promise.all([
+        prisma.systemConfig.findUnique({ where: { key: 'DEFAULT_LOCAL_LEAVE' } }),
+        prisma.systemConfig.findUnique({ where: { key: 'DEFAULT_SICK_LEAVE' } }),
+      ]);
+      const defaultLocal = localCfg ? parseFloat(localCfg.value) : 15;
+      const defaultSick = sickCfg ? parseFloat(sickCfg.value) : 10;
+      if (useProration !== false) {
+        finalLocalLeave = proratedLeave(defaultLocal, joiningDateObj);
+        finalSickLeave = proratedLeave(defaultSick, joiningDateObj);
+      } else {
+        finalLocalLeave = defaultLocal;
+        finalSickLeave = defaultSick;
+      }
+    }
+
     // Create employee
     const employee = await prisma.employee.create({
       data: {
@@ -136,12 +171,12 @@ export const createEmployee = async (req: AuthRequest, res: Response) => {
         phone,
         department,
         jobTitle,
-        joiningDate: new Date(joiningDate),
+        joiningDate: joiningDateObj,
         baseSalary: parseFloat(baseSalary),
         travellingAllowance: parseFloat(travellingAllowance || 0),
         otherAllowances: parseFloat(otherAllowances || 0),
-        localLeaveBalance: parseFloat(localLeaveBalance || 0),
-        sickLeaveBalance: parseFloat(sickLeaveBalance || 0),
+        localLeaveBalance: finalLocalLeave,
+        sickLeaveBalance: finalSickLeave,
         status: 'ACTIVE',
       },
       include: {

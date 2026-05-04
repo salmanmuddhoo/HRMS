@@ -18,12 +18,12 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/', getAllEmployees);
-router.get('/stats', authorize('ADMIN', 'EMPLOYER'), getEmployeeStats);
+router.get('/stats', authorize('ADMIN', 'EMPLOYER', 'DIRECTOR'), getEmployeeStats);
 router.get('/:id', getEmployeeById);
 
 router.post(
   '/',
-  authorize('ADMIN', 'EMPLOYER'),
+  authorize('ADMIN', 'EMPLOYER', 'DIRECTOR'),
   validate([
     body('employeeId').notEmpty().withMessage('Employee ID is required'),
     body('firstName').notEmpty().withMessage('First name is required'),
@@ -39,7 +39,7 @@ router.post(
 
 router.put(
   '/:id',
-  authorize('ADMIN', 'EMPLOYER'),
+  authorize('ADMIN', 'EMPLOYER', 'DIRECTOR'),
   validate([
     body('firstName').optional().notEmpty(),
     body('lastName').optional().notEmpty(),
@@ -51,7 +51,7 @@ router.put(
 );
 
 // Deactivate (ADMIN + EMPLOYER can deactivate)
-router.patch('/:id/deactivate', authorize('ADMIN', 'EMPLOYER'), deactivateEmployee);
+router.patch('/:id/deactivate', authorize('ADMIN', 'EMPLOYER', 'DIRECTOR'), deactivateEmployee);
 
 // Hard delete (ADMIN only)
 router.delete('/:id', authorize('ADMIN'), deleteEmployee);
@@ -59,7 +59,7 @@ router.delete('/:id', authorize('ADMIN'), deleteEmployee);
 // Reset password (ADMIN + EMPLOYER)
 router.post(
   '/:id/reset-password',
-  authorize('ADMIN', 'EMPLOYER'),
+  authorize('ADMIN', 'EMPLOYER', 'DIRECTOR'),
   validate([body('newPassword').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')]),
   resetEmployeePassword
 );

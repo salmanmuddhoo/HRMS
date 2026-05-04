@@ -33,7 +33,7 @@ router.post(
 
 router.post(
   '/urgent',
-  authorize('ADMIN', 'EMPLOYER'),
+  authorize('ADMIN', 'EMPLOYER', 'DIRECTOR'),
   validate([
     body('employeeId').notEmpty().withMessage('Employee ID is required'),
     body('leaveType').isIn(['LOCAL', 'SICK']).withMessage('Invalid leave type'),
@@ -44,11 +44,11 @@ router.post(
   addUrgentLeave
 );
 
-router.put('/:id/approve', authorize('ADMIN', 'EMPLOYER'), approveLeave);
+router.put('/:id/approve', authorize('ADMIN', 'EMPLOYER', 'DIRECTOR'), approveLeave);
 
 router.put(
   '/:id/reject',
-  authorize('ADMIN', 'EMPLOYER'),
+  authorize('ADMIN', 'EMPLOYER', 'DIRECTOR'),
   validate([
     body('rejectionReason').notEmpty().withMessage('Rejection reason is required'),
   ]),

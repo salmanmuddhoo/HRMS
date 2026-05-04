@@ -19,7 +19,7 @@ router.get('/summary/:employeeId', getMonthlyAttendanceSummary);
 
 router.post(
   '/absence',
-  authorize('ADMIN', 'EMPLOYER'),
+  authorize('ADMIN', 'EMPLOYER', 'DIRECTOR'),
   validate([
     body('employeeId').notEmpty().withMessage('Employee ID is required'),
     body('date').isISO8601().withMessage('Valid date is required'),
@@ -29,7 +29,7 @@ router.post(
 
 router.put(
   '/:id',
-  authorize('ADMIN', 'EMPLOYER'),
+  authorize('ADMIN', 'EMPLOYER', 'DIRECTOR'),
   validate([
     body('isPresent').optional().isBoolean(),
     body('isAbsence').optional().isBoolean(),

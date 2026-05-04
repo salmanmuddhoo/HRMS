@@ -20,9 +20,10 @@ router.use(authenticate);
 router.get('/', getAllPayrolls);
 router.get('/:id', getPayrollById);
 
+// Process: Treasurer initiates, Director/Admin/Employer can also
 router.post(
   '/process',
-  authorize('ADMIN', 'EMPLOYER'),
+  authorize('ADMIN', 'EMPLOYER', 'DIRECTOR', 'TREASURER'),
   validate([
     body('month')
       .isInt({ min: 1, max: 12 })
@@ -34,12 +35,13 @@ router.post(
   processMonthlyPayroll
 );
 
-router.put('/:id/approve', authorize('ADMIN', 'EMPLOYER'), approvePayroll);
-router.put('/:id/lock', authorize('ADMIN', 'EMPLOYER'), lockPayroll);
+// Approve: Secretary approves, Treasurer explicitly excluded
+router.put('/:id/approve', authorize('ADMIN', 'EMPLOYER', 'DIRECTOR', 'SECRETARY'), approvePayroll);
+router.put('/:id/lock', authorize('ADMIN', 'EMPLOYER', 'DIRECTOR', 'SECRETARY'), lockPayroll);
 
 router.put(
   '/:id',
-  authorize('ADMIN', 'EMPLOYER'),
+  authorize('ADMIN', 'EMPLOYER', 'DIRECTOR'),
   validate([
     body('baseSalary').optional().isNumeric(),
     body('travellingAllowance').optional().isNumeric(),
@@ -48,6 +50,6 @@ router.put(
   updatePayroll
 );
 
-router.delete('/:id', authorize('ADMIN', 'EMPLOYER'), deletePayroll);
+router.delete('/:id', authorize('ADMIN', 'EMPLOYER', 'DIRECTOR'), deletePayroll);
 
 export default router;

@@ -392,7 +392,10 @@ const EmployeeForm: React.FC = () => {
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
               >
                 <option value="EMPLOYEE">Employee</option>
-                <option value="EMPLOYER">Employer/Manager</option>
+                <option value="EMPLOYER">Employer / Manager</option>
+                <option value="DIRECTOR">Director</option>
+                <option value="TREASURER">Treasurer</option>
+                <option value="SECRETARY">Secretary</option>
                 <option value="ADMIN">Admin</option>
               </select>
             </div>

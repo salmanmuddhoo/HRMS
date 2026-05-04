@@ -12,6 +12,7 @@ const Settings: React.FC = () => {
     DEFAULT_LOCAL_LEAVE: '15',
     DEFAULT_SICK_LEAVE: '10',
     WORKING_DAYS_PER_MONTH: '22',
+    PAYROLL_CYCLE_START_DAY: '1',
     COMPANY_NAME: '',
     COMPANY_ADDRESS: '',
     COMPANY_PHONE: '',
@@ -74,6 +75,7 @@ const Settings: React.FC = () => {
       DEFAULT_LOCAL_LEAVE: 'Default annual local leave days for new employees',
       DEFAULT_SICK_LEAVE: 'Default annual sick leave days for new employees',
       WORKING_DAYS_PER_MONTH: 'Number of working days per month for payroll calculation',
+      PAYROLL_CYCLE_START_DAY: 'Day of month the payroll cycle starts (1 = standard calendar month)',
       COMPANY_NAME: 'Company name for payslips',
       COMPANY_ADDRESS: 'Company address for payslips',
       COMPANY_PHONE: 'Company phone number',
@@ -154,20 +156,41 @@ const Settings: React.FC = () => {
           <div className="bg-white shadow rounded-lg p-6 mb-6">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Payroll Settings</h2>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Working Days Per Month
-              </label>
-              <input
-                type="number"
-                name="WORKING_DAYS_PER_MONTH"
-                value={config.WORKING_DAYS_PER_MONTH}
-                onChange={handleChange}
-                min="1"
-                max="31"
-                className="mt-1 block w-full max-w-xs rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
-              />
-              <p className="mt-1 text-sm text-gray-500">Used for calculating per-day salary deductions</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Working Days Per Month
+                </label>
+                <input
+                  type="number"
+                  name="WORKING_DAYS_PER_MONTH"
+                  value={config.WORKING_DAYS_PER_MONTH}
+                  onChange={handleChange}
+                  min="1"
+                  max="31"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
+                />
+                <p className="mt-1 text-sm text-gray-500">Used for calculating per-day salary deductions</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Payroll Cycle Start Day
+                </label>
+                <input
+                  type="number"
+                  name="PAYROLL_CYCLE_START_DAY"
+                  value={config.PAYROLL_CYCLE_START_DAY}
+                  onChange={handleChange}
+                  min="1"
+                  max="28"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
+                />
+                <p className="mt-1 text-sm text-gray-500">
+                  Day of month the attendance cycle begins. Set to 1 for a standard calendar month.
+                  E.g. set to 23 to collect attendance from the 23rd of the previous month to the 22nd of the current month.
+                </p>
+              </div>
             </div>
           </div>
 

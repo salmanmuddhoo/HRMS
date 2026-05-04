@@ -41,6 +41,18 @@ export const getMonthDateRange = (month: number, year: number) => {
   return { startDate, endDate };
 };
 
+// When startDay > 1, the cycle runs from startDay of the previous month to (startDay-1) of the current month.
+export const getPayrollCycleDateRange = (month: number, year: number, startDay: number) => {
+  if (startDay <= 1) {
+    return getMonthDateRange(month, year);
+  }
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const prevYear = month === 1 ? year - 1 : year;
+  const startDate = new Date(prevYear, prevMonth - 1, startDay);
+  const endDate = new Date(year, month - 1, startDay - 1);
+  return { startDate, endDate };
+};
+
 export const formatDate = (date: Date): string => {
   return date.toISOString().split('T')[0];
 };

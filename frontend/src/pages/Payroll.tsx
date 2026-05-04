@@ -47,6 +47,7 @@ const Payroll: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [processing, setProcessing] = useState(false);
+  const [cycleDates, setCycleDates] = useState<{ startDate: string; endDate: string } | null>(null);
 
   // View/Edit modal
   const [showModal, setShowModal] = useState(false);
@@ -66,12 +67,16 @@ const Payroll: React.FC = () => {
   const fetchPayrolls = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await api.getPayrolls({
-        month: selectedMonth,
-        year: selectedYear,
-      });
-      if ((response as any).success) {
-        setPayrolls((response as any).data || []);
+      const [payrollRes, cycleRes] = await Promise.all([
+        api.getPayrolls({ month: selectedMonth, year: selectedYear }),
+        api.getPayrollCycle(selectedMonth, selectedYear),
+      ]);
+      if ((payrollRes as any).success) {
+        setPayrolls((payrollRes as any).data || []);
+      }
+      if ((cycleRes as any).success) {
+        const d = (cycleRes as any).data;
+        setCycleDates({ startDate: d.startDate, endDate: d.endDate });
       }
     } catch (error) {
       console.error('Failed to fetch payrolls:', error);
@@ -269,9 +274,9 @@ const Payroll: React.FC = () => {
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i);
 
   // Summary calculations
-  const totalGross = payrolls.reduce((sum, p) => sum + p.grossSalary, 0);
-  const totalDeductions = payrolls.reduce((sum, p) => sum + p.totalDeductions, 0);
-  const totalNet = payrolls.reduce((sum, p) => sum + p.netSalary, 0);
+  const totalGross = payrolls.reduce((sum, p) => sum + Number(p.grossSalary), 0);
+  const totalDeductions = payrolls.reduce((sum, p) => sum + Number(p.totalDeductions), 0);
+  const totalNet = payrolls.reduce((sum, p) => sum + Number(p.netSalary), 0);
   const draftCount = payrolls.filter(p => p.status === 'DRAFT').length;
   const approvedCount = payrolls.filter(p => p.status === 'APPROVED').length;
   const lockedCount = payrolls.filter(p => p.status === 'LOCKED').length;
@@ -297,6 +302,11 @@ const Payroll: React.FC = () => {
 
         {/* Month/Year Selection & Process */}
         <div className="mb-6 bg-white p-4 rounded-lg shadow">
+          {cycleDates && (
+            <p className="text-sm text-gray-500 mb-3">
+              Attendance period: <span className="font-medium text-gray-700">{cycleDates.startDate}</span> to <span className="font-medium text-gray-700">{cycleDates.endDate}</span>
+            </p>
+          )}
           <div className="flex flex-wrap items-end gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Month</label>
@@ -432,34 +442,34 @@ const Payroll: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-right text-sm text-gray-900">
-                        {formatCurrency(payroll.baseSalary)}
+                        {formatCurrency(Number(payroll.baseSalary))}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-right">
                         <div className="text-sm text-gray-900">
-                          {formatCurrency(payroll.travellingAllowance + payroll.otherAllowances)}
+                          {formatCurrency(Number(payroll.travellingAllowance) + Number(payroll.otherAllowances))}
                         </div>
                         <div className="text-xs text-gray-500">
-                          Travel: {formatCurrency(payroll.travellingAllowance)}
+                          Travel: {formatCurrency(Number(payroll.travellingAllowance))}
                         </div>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-right">
                         <div className="text-sm text-red-600">
-                          -{formatCurrency(payroll.totalDeductions)}
+                          -{formatCurrency(Number(payroll.totalDeductions))}
                         </div>
-                        {payroll.travellingDeduction > 0 && (
-                          <div className="text-xs text-gray-500">Travel: {formatCurrency(payroll.travellingDeduction)}</div>
+                        {Number(payroll.travellingDeduction) > 0 && (
+                          <div className="text-xs text-gray-500">Travel: {formatCurrency(Number(payroll.travellingDeduction))}</div>
                         )}
                         {(payroll.adjustments || []).filter(a => a.type === 'DEDUCTION').map((a, i) => (
-                          <div key={i} className="text-xs text-gray-500">{a.label}: {formatCurrency(a.amount)}</div>
+                          <div key={i} className="text-xs text-gray-500">{a.label}: {formatCurrency(Number(a.amount))}</div>
                         ))}
                         {(payroll.adjustments || []).filter(a => a.type === 'ADDITION').length > 0 && (
                           <div className="text-xs text-green-600">
-                            +{formatCurrency((payroll.adjustments || []).filter(a => a.type === 'ADDITION').reduce((s, a) => s + a.amount, 0))} additions
+                            +{formatCurrency((payroll.adjustments || []).filter(a => a.type === 'ADDITION').reduce((s, a) => s + Number(a.amount), 0))} additions
                           </div>
                         )}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-semibold text-green-700">
-                        {formatCurrency(payroll.netSalary)}
+                        {formatCurrency(Number(payroll.netSalary))}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-center">
                         <span className={getStatusBadge(payroll.status)}>{payroll.status}</span>

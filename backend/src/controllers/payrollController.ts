@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import prisma from '../config/database';
 import { sendSuccess, sendError } from '../utils/response';
-import { getMonthDateRange } from '../utils/date';
+import { getPayrollCycleDateRange } from '../utils/date';
 
 export const getAllPayrolls = async (req: AuthRequest, res: Response) => {
   try {
@@ -144,8 +144,6 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
       return sendError(res, 'No active employees found', 400);
     }
 
-    const { startDate, endDate } = getMonthDateRange(monthNum, yearNum);
-
     // Get working days configuration
     const workingDaysConfig = await prisma.systemConfig.findUnique({
       where: { key: 'WORKING_DAYS_PER_MONTH' },
@@ -155,6 +153,13 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
       ? parseInt(workingDaysConfig.value)
       : 22;
 
+    // Determine attendance date range based on payroll cycle
+    const cycleStartDayConfig = await prisma.systemConfig.findUnique({
+      where: { key: 'PAYROLL_CYCLE_START_DAY' },
+    });
+    const cycleStartDay = cycleStartDayConfig ? parseInt(cycleStartDayConfig.value) : 1;
+    const { startDate: cycleStart, endDate: cycleEnd } = getPayrollCycleDateRange(monthNum, yearNum, cycleStartDay);
+
     const payrollRecords = [];
 
     for (const employee of employees) {
@@ -163,8 +168,8 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
         where: {
           employeeId: employee.id,
           date: {
-            gte: startDate,
-            lte: endDate,
+            gte: cycleStart,
+            lte: cycleEnd,
           },
         },
       });

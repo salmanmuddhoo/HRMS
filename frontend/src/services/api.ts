@@ -266,6 +266,10 @@ class ApiService {
     return this.request({ method: 'GET', url: '/config/leave-defaults' });
   }
 
+  async getPayrollCycle(month: number, year: number) {
+    return this.request({ method: 'GET', url: '/config/payroll-cycle', params: { month, year } });
+  }
+
   async updateConfig(configs: Array<{ key: string; value: string; description?: string }>) {
     return this.request({ method: 'POST', url: '/config/batch', data: configs });
   }

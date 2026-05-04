@@ -2,6 +2,8 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import prisma from '../config/database';
 import { sendSuccess, sendError } from '../utils/response';
+import { getPayrollCycleDateRange } from '../utils/date';
+import { formatDate } from '../utils/date';
 
 export const getAllConfig = async (req: AuthRequest, res: Response) => {
   try {
@@ -121,6 +123,32 @@ export const calculateProratedLeave = (annualLeave: number, joiningDate: Date): 
   const proratedLeave = Math.ceil((annualLeave / 12) * remainingMonths);
 
   return proratedLeave;
+};
+
+export const getPayrollCycle = async (req: AuthRequest, res: Response) => {
+  try {
+    const { month, year } = req.query;
+    const monthNum = month ? parseInt(month as string) : new Date().getMonth() + 1;
+    const yearNum = year ? parseInt(year as string) : new Date().getFullYear();
+
+    const startDayConfig = await prisma.systemConfig.findUnique({
+      where: { key: 'PAYROLL_CYCLE_START_DAY' },
+    });
+    const startDay = startDayConfig ? parseInt(startDayConfig.value) : 1;
+
+    const { startDate, endDate } = getPayrollCycleDateRange(monthNum, yearNum, startDay);
+
+    return sendSuccess(res, {
+      startDay,
+      startDate: formatDate(startDate),
+      endDate: formatDate(endDate),
+      month: monthNum,
+      year: yearNum,
+    });
+  } catch (error: any) {
+    console.error('Get payroll cycle error:', error);
+    return sendError(res, 'Failed to fetch payroll cycle', 500);
+  }
 };
 
 export const getLeaveDefaults = async (req: AuthRequest, res: Response) => {

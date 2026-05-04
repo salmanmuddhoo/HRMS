@@ -6,6 +6,15 @@ export interface AuthRequest extends Request {
   user?: JwtPayload;
 }
 
+// All roles that can manage HR (employees, leaves, attendance, holidays)
+export const HR_ROLES = ['ADMIN', 'EMPLOYER', 'DIRECTOR', 'TREASURER', 'SECRETARY'] as const;
+
+// Roles that can mutate payroll (process, lock, edit, delete)
+export const PAYROLL_WRITE_ROLES = ['ADMIN', 'TREASURER'] as const;
+
+// Role that can approve payroll
+export const PAYROLL_APPROVE_ROLES = ['ADMIN', 'SECRETARY'] as const;
+
 export const authenticate = (
   req: AuthRequest,
   res: Response,

@@ -170,7 +170,7 @@ const Profile: React.FC = () => {
         </div>
 
         {/* Email Notification Preference - only for employers/admins */}
-        {(user?.role === 'ADMIN' || user?.role === 'EMPLOYER') && (
+        {(user?.role === 'ADMIN' || user?.role === 'EMPLOYER' || user?.role === 'DIRECTOR') && (
           <div className="bg-white shadow rounded-lg p-6">
             <h2 className="text-lg font-medium text-gray-900 mb-1">Email Notifications</h2>
             <p className="text-sm text-gray-500 mb-4">Receive email alerts when employees submit leave requests.</p>

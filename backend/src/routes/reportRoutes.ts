@@ -5,16 +5,15 @@ import {
   getPayrollReport,
   getDashboardStats,
 } from '../controllers/reportController';
-import { authenticate, authorize } from '../middleware/auth';
+import { authenticate, authorize, HR_ROLES } from '../middleware/auth';
 
 const router = Router();
 
-// All routes require authentication
 router.use(authenticate);
 
 router.get('/dashboard', getDashboardStats);
-router.get('/leave', authorize('ADMIN', 'EMPLOYER'), getLeaveReport);
-router.get('/attendance', authorize('ADMIN', 'EMPLOYER'), getAttendanceReport);
-router.get('/payroll', authorize('ADMIN', 'EMPLOYER'), getPayrollReport);
+router.get('/leave', authorize(...HR_ROLES), getLeaveReport);
+router.get('/attendance', authorize(...HR_ROLES), getAttendanceReport);
+router.get('/payroll', authorize(...HR_ROLES), getPayrollReport);
 
 export default router;

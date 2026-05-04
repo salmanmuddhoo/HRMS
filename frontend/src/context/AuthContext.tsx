@@ -11,6 +11,11 @@ interface AuthContextType {
   isAdmin: boolean;
   isEmployer: boolean;
   isEmployee: boolean;
+  isTreasurer: boolean;
+  isSecretary: boolean;
+  isDirector: boolean;
+  canProcessPayroll: boolean;
+  canApprovePayroll: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -70,15 +75,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     window.location.href = '/login';
   };
 
+  const role = user?.role;
+  const isStaff = !!(role && role !== 'EMPLOYEE');
   const value: AuthContextType = {
     user,
     loading,
     login,
     logout,
     isAuthenticated: !!user,
-    isAdmin: user?.role === 'ADMIN',
-    isEmployer: user?.role === 'EMPLOYER' || user?.role === 'ADMIN',
-    isEmployee: user?.role === 'EMPLOYEE',
+    isAdmin: role === 'ADMIN',
+    isEmployer: isStaff,
+    isEmployee: role === 'EMPLOYEE',
+    isDirector: role === 'DIRECTOR',
+    isTreasurer: role === 'TREASURER',
+    isSecretary: role === 'SECRETARY',
+    canProcessPayroll: role === 'ADMIN' || role === 'TREASURER',
+    canApprovePayroll: role === 'ADMIN' || role === 'SECRETARY',
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

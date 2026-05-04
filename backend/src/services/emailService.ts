@@ -1,25 +1,21 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
 class EmailService {
-  private transporter: nodemailer.Transporter | null = null;
+  private client: Resend | null = null;
 
-  private getTransporter(): nodemailer.Transporter | null {
-    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASSWORD) {
-      console.warn('[EmailService] SMTP not configured — skipping email (set SMTP_HOST, SMTP_USER, SMTP_PASSWORD)');
+  private getClient(): Resend | null {
+    if (!process.env.RESEND_API_KEY) {
+      console.warn('[EmailService] RESEND_API_KEY not set — skipping email');
       return null;
     }
-    if (!this.transporter) {
-      this.transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT || '587'),
-        secure: process.env.SMTP_SECURE === 'true',
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASSWORD,
-        },
-      });
+    if (!this.client) {
+      this.client = new Resend(process.env.RESEND_API_KEY);
     }
-    return this.transporter;
+    return this.client;
+  }
+
+  private get from(): string {
+    return process.env.EMAIL_FROM || 'HRMS <onboarding@resend.dev>';
   }
 
   async sendLeaveRequestNotification(opts: {
@@ -31,10 +27,9 @@ class EmailService {
     totalDays: number;
     reason: string;
   }): Promise<void> {
-    const transport = this.getTransporter();
-    if (!transport || opts.to.length === 0) return;
+    const client = this.getClient();
+    if (!client || opts.to.length === 0) return;
 
-    const subject = `Leave Request from ${opts.employeeName}`;
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
         <div style="background:#1a7a3a;padding:20px;border-radius:8px 8px 0 0;text-align:center;">
@@ -51,21 +46,18 @@ class EmailService {
             <tr style="background:#fff;"><td style="padding:8px;color:#666;font-weight:bold;">Reason</td><td style="padding:8px;color:#333;">${opts.reason}</td></tr>
           </table>
           <p style="color:#666;font-size:13px;">Please log in to the HRMS system to approve or reject this request.</p>
-          <p style="color:#999;font-size:11px;margin-top:20px;">To stop receiving these notifications, update your notification preferences in your profile settings.</p>
         </div>
       </div>
     `;
 
-    try {
-      await transport.sendMail({
-        from: process.env.EMAIL_FROM || 'HRMS <noreply@hrms.com>',
-        to: opts.to.join(','),
-        subject,
-        html,
-      });
-    } catch (err) {
-      console.error('Email send failed:', err);
-    }
+    const { error } = await client.emails.send({
+      from: this.from,
+      to: opts.to,
+      subject: `Leave Request from ${opts.employeeName}`,
+      html,
+    });
+
+    if (error) console.error('[EmailService] Send failed:', error);
   }
 
   async sendLeaveStatusNotification(opts: {
@@ -77,11 +69,10 @@ class EmailService {
     status: 'APPROVED' | 'REJECTED';
     rejectionReason?: string;
   }): Promise<void> {
-    const transport = this.getTransporter();
-    if (!transport) return;
+    const client = this.getClient();
+    if (!client) return;
 
     const approved = opts.status === 'APPROVED';
-    const subject = `Your Leave Request has been ${approved ? 'Approved' : 'Rejected'}`;
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
         <div style="background:${approved ? '#1a7a3a' : '#dc2626'};padding:20px;border-radius:8px 8px 0 0;text-align:center;">
@@ -100,16 +91,14 @@ class EmailService {
       </div>
     `;
 
-    try {
-      await transport.sendMail({
-        from: process.env.EMAIL_FROM || 'HRMS <noreply@hrms.com>',
-        to: opts.to,
-        subject,
-        html,
-      });
-    } catch (err) {
-      console.error('Email send failed:', err);
-    }
+    const { error } = await client.emails.send({
+      from: this.from,
+      to: opts.to,
+      subject: `Your Leave Request has been ${approved ? 'Approved' : 'Rejected'}`,
+      html,
+    });
+
+    if (error) console.error('[EmailService] Send failed:', error);
   }
 }
 

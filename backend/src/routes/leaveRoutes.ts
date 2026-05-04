@@ -9,12 +9,11 @@ import {
   addUrgentLeave,
   cancelLeave,
 } from '../controllers/leaveController';
-import { authenticate, authorize } from '../middleware/auth';
+import { authenticate, authorize, HR_ROLES } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 
 const router = Router();
 
-// All routes require authentication
 router.use(authenticate);
 
 router.get('/', getAllLeaves);
@@ -33,7 +32,7 @@ router.post(
 
 router.post(
   '/urgent',
-  authorize('ADMIN', 'EMPLOYER'),
+  authorize(...HR_ROLES),
   validate([
     body('employeeId').notEmpty().withMessage('Employee ID is required'),
     body('leaveType').isIn(['LOCAL', 'SICK']).withMessage('Invalid leave type'),
@@ -44,14 +43,12 @@ router.post(
   addUrgentLeave
 );
 
-router.put('/:id/approve', authorize('ADMIN', 'EMPLOYER'), approveLeave);
+router.put('/:id/approve', authorize(...HR_ROLES), approveLeave);
 
 router.put(
   '/:id/reject',
-  authorize('ADMIN', 'EMPLOYER'),
-  validate([
-    body('rejectionReason').notEmpty().withMessage('Rejection reason is required'),
-  ]),
+  authorize(...HR_ROLES),
+  validate([body('rejectionReason').notEmpty().withMessage('Rejection reason is required')]),
   rejectLeave
 );
 

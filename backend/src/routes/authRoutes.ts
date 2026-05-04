@@ -22,7 +22,7 @@ router.post(
     body('password')
       .isLength({ min: 6 })
       .withMessage('Password must be at least 6 characters'),
-    body('role').optional().isIn(['ADMIN', 'EMPLOYER', 'EMPLOYEE']),
+    body('role').optional().isIn(['ADMIN', 'EMPLOYER', 'DIRECTOR', 'TREASURER', 'SECRETARY', 'EMPLOYEE']),
   ]),
   register
 );

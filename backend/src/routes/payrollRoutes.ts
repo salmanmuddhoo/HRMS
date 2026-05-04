@@ -9,39 +9,36 @@ import {
   updatePayroll,
   deletePayroll,
 } from '../controllers/payrollController';
-import { authenticate, authorize } from '../middleware/auth';
+import { authenticate, authorize, PAYROLL_WRITE_ROLES, PAYROLL_APPROVE_ROLES } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 
 const router = Router();
 
-// All routes require authentication
 router.use(authenticate);
 
 router.get('/', getAllPayrolls);
 router.get('/:id', getPayrollById);
 
-// Process: Treasurer initiates, Director/Admin/Employer can also
+// Treasurer processes (creates draft), Secretary cannot
 router.post(
   '/process',
-  authorize('ADMIN', 'EMPLOYER', 'DIRECTOR', 'TREASURER'),
+  authorize(...PAYROLL_WRITE_ROLES),
   validate([
-    body('month')
-      .isInt({ min: 1, max: 12 })
-      .withMessage('Month must be between 1 and 12'),
-    body('year')
-      .isInt({ min: 2000 })
-      .withMessage('Year must be a valid year'),
+    body('month').isInt({ min: 1, max: 12 }).withMessage('Month must be between 1 and 12'),
+    body('year').isInt({ min: 2000 }).withMessage('Year must be a valid year'),
   ]),
   processMonthlyPayroll
 );
 
-// Approve: Secretary approves, Treasurer explicitly excluded
-router.put('/:id/approve', authorize('ADMIN', 'EMPLOYER', 'DIRECTOR', 'SECRETARY'), approvePayroll);
-router.put('/:id/lock', authorize('ADMIN', 'EMPLOYER', 'DIRECTOR', 'SECRETARY'), lockPayroll);
+// Secretary approves, Treasurer cannot
+router.put('/:id/approve', authorize(...PAYROLL_APPROVE_ROLES), approvePayroll);
+
+// Treasurer locks after Secretary approval
+router.put('/:id/lock', authorize(...PAYROLL_WRITE_ROLES), lockPayroll);
 
 router.put(
   '/:id',
-  authorize('ADMIN', 'EMPLOYER', 'DIRECTOR'),
+  authorize(...PAYROLL_WRITE_ROLES),
   validate([
     body('baseSalary').optional().isNumeric(),
     body('travellingAllowance').optional().isNumeric(),
@@ -50,6 +47,6 @@ router.put(
   updatePayroll
 );
 
-router.delete('/:id', authorize('ADMIN', 'EMPLOYER', 'DIRECTOR'), deletePayroll);
+router.delete('/:id', authorize(...PAYROLL_WRITE_ROLES), deletePayroll);
 
 export default router;

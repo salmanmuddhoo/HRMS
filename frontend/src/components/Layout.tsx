@@ -8,7 +8,7 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { user, logout, isEmployer, isTreasurer, isSecretary } = useAuth();
+  const { user, logout, isEmployer } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -17,7 +17,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = user?.role === 'ADMIN';
-  const isPayrollOnly = isTreasurer || isSecretary;
 
   const handleLogout = () => {
     logout();
@@ -26,20 +25,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', forAll: true },
-    { name: 'Employees', href: '/employees', forEmployer: true },
+    { name: 'Employees', href: '/employees', forStaff: true },
     { name: 'Leaves', href: '/leaves', forAll: true },
-    { name: 'Attendance', href: '/attendance', forEmployer: true },
-    { name: 'Payroll', href: '/payroll', forEmployer: true, forPayrollOnly: true },
+    { name: 'Attendance', href: '/attendance', forStaff: true },
+    { name: 'Payroll', href: '/payroll', forStaff: true },
     { name: 'Payslips', href: '/payslips', forAll: true },
-    { name: 'Holidays', href: '/holidays', forEmployer: true },
-    { name: 'Reports', href: '/reports', forEmployer: true, forPayrollOnly: true },
+    { name: 'Holidays', href: '/holidays', forStaff: true },
+    { name: 'Reports', href: '/reports', forStaff: true },
     { name: 'Settings', href: '/settings', forAdmin: true },
   ];
 
   const filteredNavigation = navigation.filter((item) => {
     if ((item as any).forAll) return true;
-    if ((item as any).forEmployer && isEmployer) return true;
-    if ((item as any).forPayrollOnly && isPayrollOnly) return true;
+    if ((item as any).forStaff && isEmployer) return true;
     if ((item as any).forAdmin && isAdmin) return true;
     return false;
   });

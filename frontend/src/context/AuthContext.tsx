@@ -76,6 +76,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const role = user?.role;
+  const isStaff = !!(role && role !== 'EMPLOYEE');
   const value: AuthContextType = {
     user,
     loading,
@@ -83,13 +84,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     logout,
     isAuthenticated: !!user,
     isAdmin: role === 'ADMIN',
-    isEmployer: role === 'EMPLOYER' || role === 'ADMIN' || role === 'DIRECTOR',
+    isEmployer: isStaff,
     isEmployee: role === 'EMPLOYEE',
     isDirector: role === 'DIRECTOR',
     isTreasurer: role === 'TREASURER',
     isSecretary: role === 'SECRETARY',
-    canProcessPayroll: ['ADMIN', 'EMPLOYER', 'DIRECTOR', 'TREASURER'].includes(role ?? ''),
-    canApprovePayroll: ['ADMIN', 'EMPLOYER', 'DIRECTOR', 'SECRETARY'].includes(role ?? ''),
+    canProcessPayroll: role === 'ADMIN' || role === 'TREASURER',
+    canApprovePayroll: role === 'ADMIN' || role === 'SECRETARY',
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

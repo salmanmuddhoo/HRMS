@@ -34,7 +34,7 @@ interface PayrollRecord {
 }
 
 const Payroll: React.FC = () => {
-  const { isEmployer, canProcessPayroll, canApprovePayroll } = useAuth();
+  const { canProcessPayroll, canApprovePayroll } = useAuth();
   const [payrolls, setPayrolls] = useState<PayrollRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -382,7 +382,7 @@ const Payroll: React.FC = () => {
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Deductions</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Salary</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
-                    {(isEmployer || canApprovePayroll) && (
+                    {(canProcessPayroll || canApprovePayroll) && (
                       <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
                     )}
                   </tr>
@@ -435,10 +435,10 @@ const Payroll: React.FC = () => {
                       <td className="px-4 py-3 whitespace-nowrap text-center">
                         <span className={getStatusBadge(payroll.status)}>{payroll.status}</span>
                       </td>
-                      {(isEmployer || canApprovePayroll) && (
+                      {(canProcessPayroll || canApprovePayroll) && (
                         <td className="px-4 py-3 whitespace-nowrap text-center">
                           <div className="flex items-center justify-center gap-2">
-                            {isEmployer && payroll.status !== 'LOCKED' && (
+                            {canProcessPayroll && payroll.status !== 'LOCKED' && (
                               <button
                                 onClick={() => openEditModal(payroll)}
                                 className="text-primary-600 hover:text-primary-900 text-sm"
@@ -454,7 +454,7 @@ const Payroll: React.FC = () => {
                                 Approve
                               </button>
                             )}
-                            {canApprovePayroll && payroll.status === 'APPROVED' && (
+                            {canProcessPayroll && payroll.status === 'APPROVED' && (
                               <button
                                 onClick={() => handleLock(payroll.id)}
                                 className="text-gray-600 hover:text-gray-900 text-sm"
@@ -462,7 +462,7 @@ const Payroll: React.FC = () => {
                                 Lock
                               </button>
                             )}
-                            {isEmployer && payroll.status !== 'LOCKED' && (
+                            {canProcessPayroll && payroll.status !== 'LOCKED' && (
                               <button
                                 onClick={() => handleDelete(payroll.id)}
                                 className="text-red-600 hover:text-red-900 text-sm"

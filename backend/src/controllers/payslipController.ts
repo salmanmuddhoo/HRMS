@@ -14,6 +14,7 @@ export const generatePayslip = async (req: AuthRequest, res: Response) => {
       where: { id: payrollId },
       include: {
         employee: true,
+        adjustments: { orderBy: { createdAt: 'asc' } },
       },
     });
 
@@ -73,6 +74,11 @@ export const generatePayslip = async (req: AuthRequest, res: Response) => {
         totalDeductions: Number(payroll.totalDeductions),
         grossSalary: Number(payroll.grossSalary),
         netSalary: Number(payroll.netSalary),
+        adjustments: (payroll.adjustments || []).map(a => ({
+          label: a.label,
+          type: a.type as 'DEDUCTION' | 'ADDITION',
+          amount: Number(a.amount),
+        })),
       },
       company: {
         name: companyName,
@@ -125,6 +131,7 @@ export const downloadPayslip = async (req: AuthRequest, res: Response) => {
         payroll: {
           include: {
             employee: true,
+            adjustments: { orderBy: { createdAt: 'asc' } },
           },
         },
       },
@@ -156,7 +163,7 @@ export const downloadPayslip = async (req: AuthRequest, res: Response) => {
       const regeneratedPath = path.join(uploadDir, 'payslips', path.basename(payslip.pdfPath || `payslip_${emp.employeeId}_${pr.month}_${pr.year}.pdf`));
       await generatePayslipPDF({
         employee: { employeeId: emp.employeeId, firstName: emp.firstName, lastName: emp.lastName, email: emp.email, department: emp.department, jobTitle: emp.jobTitle },
-        payroll: { id: pr.id, month: pr.month, year: pr.year, workingDays: pr.workingDays, presentDays: pr.presentDays, leaveDays: pr.leaveDays, absenceDays: pr.absenceDays, baseSalary: Number(pr.baseSalary), travellingAllowance: Number(pr.travellingAllowance), otherAllowances: Number(pr.otherAllowances), travellingDeduction: Number(pr.travellingDeduction), totalDeductions: Number(pr.totalDeductions), grossSalary: Number(pr.grossSalary), netSalary: Number(pr.netSalary) },
+        payroll: { id: pr.id, month: pr.month, year: pr.year, workingDays: pr.workingDays, presentDays: pr.presentDays, leaveDays: pr.leaveDays, absenceDays: pr.absenceDays, baseSalary: Number(pr.baseSalary), travellingAllowance: Number(pr.travellingAllowance), otherAllowances: Number(pr.otherAllowances), travellingDeduction: Number(pr.travellingDeduction), totalDeductions: Number(pr.totalDeductions), grossSalary: Number(pr.grossSalary), netSalary: Number(pr.netSalary), adjustments: (pr.adjustments || []).map((a: any) => ({ label: a.label, type: a.type, amount: Number(a.amount) })) },
         company: { name: companyName, address: companyAddress, phone: companyPhone, email: companyEmail },
       }, regeneratedPath);
       await prisma.payslip.update({ where: { payrollId }, data: { pdfPath: regeneratedPath } });

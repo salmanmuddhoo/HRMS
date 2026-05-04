@@ -12,6 +12,12 @@ interface Employee {
   jobTitle: string;
 }
 
+interface PayrollAdjustment {
+  label: string;
+  type: 'DEDUCTION' | 'ADDITION';
+  amount: string;
+}
+
 interface PayrollRecord {
   id: string;
   employeeId: string;
@@ -31,6 +37,7 @@ interface PayrollRecord {
   netSalary: number;
   status: 'DRAFT' | 'APPROVED' | 'LOCKED';
   remarks?: string;
+  adjustments?: { label: string; type: 'DEDUCTION' | 'ADDITION'; amount: number }[];
 }
 
 const Payroll: React.FC = () => {
@@ -50,6 +57,7 @@ const Payroll: React.FC = () => {
     otherAllowances: '',
     remarks: '',
   });
+  const [adjustments, setAdjustments] = useState<PayrollAdjustment[]>([]);
   const [saving, setSaving] = useState(false);
 
   const [error, setError] = useState('');
@@ -187,7 +195,22 @@ const Payroll: React.FC = () => {
       otherAllowances: payroll.otherAllowances.toString(),
       remarks: payroll.remarks || '',
     });
+    setAdjustments(
+      (payroll.adjustments || []).map(a => ({ label: a.label, type: a.type, amount: a.amount.toString() }))
+    );
     setShowModal(true);
+  };
+
+  const addAdjustmentRow = () => {
+    setAdjustments(prev => [...prev, { label: '', type: 'DEDUCTION', amount: '' }]);
+  };
+
+  const removeAdjustmentRow = (idx: number) => {
+    setAdjustments(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const updateAdjustmentRow = (idx: number, field: keyof PayrollAdjustment, value: string) => {
+    setAdjustments(prev => prev.map((a, i) => i === idx ? { ...a, [field]: value } : a));
   };
 
   const handleSaveEdit = async (e: React.FormEvent) => {
@@ -198,7 +221,7 @@ const Payroll: React.FC = () => {
     setError('');
 
     try {
-      const response = await api.updatePayroll(selectedPayroll.id, editData);
+      const response = await api.updatePayroll(selectedPayroll.id, { ...editData, adjustments });
       if ((response as any).success) {
         setSuccess('Payroll updated successfully');
         setShowModal(false);
@@ -424,8 +447,14 @@ const Payroll: React.FC = () => {
                           -{formatCurrency(payroll.totalDeductions)}
                         </div>
                         {payroll.travellingDeduction > 0 && (
-                          <div className="text-xs text-gray-500">
-                            Travel ded: {formatCurrency(payroll.travellingDeduction)}
+                          <div className="text-xs text-gray-500">Travel: {formatCurrency(payroll.travellingDeduction)}</div>
+                        )}
+                        {(payroll.adjustments || []).filter(a => a.type === 'DEDUCTION').map((a, i) => (
+                          <div key={i} className="text-xs text-gray-500">{a.label}: {formatCurrency(a.amount)}</div>
+                        ))}
+                        {(payroll.adjustments || []).filter(a => a.type === 'ADDITION').length > 0 && (
+                          <div className="text-xs text-green-600">
+                            +{formatCurrency((payroll.adjustments || []).filter(a => a.type === 'ADDITION').reduce((s, a) => s + a.amount, 0))} additions
                           </div>
                         )}
                       </td>
@@ -483,90 +512,127 @@ const Payroll: React.FC = () => {
 
         {/* Edit Modal */}
         {showModal && selectedPayroll && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-lg">
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
               <h2 className="text-xl font-bold text-gray-900 mb-4">
-                Edit Payroll - {selectedPayroll.employee.firstName} {selectedPayroll.employee.lastName}
+                Edit Payroll — {selectedPayroll.employee.firstName} {selectedPayroll.employee.lastName}
               </h2>
               <form onSubmit={handleSaveEdit}>
+
+                {/* Base amounts */}
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Base Salary</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={editData.baseSalary}
+                    <input type="number" step="0.01" value={editData.baseSalary}
                       onChange={(e) => setEditData({ ...editData, baseSalary: e.target.value })}
-                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
-                    />
+                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Travelling Allowance</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={editData.travellingAllowance}
+                    <input type="number" step="0.01" value={editData.travellingAllowance}
                       onChange={(e) => setEditData({ ...editData, travellingAllowance: e.target.value })}
-                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
-                    />
+                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Other Allowances</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={editData.otherAllowances}
+                    <input type="number" step="0.01" value={editData.otherAllowances}
                       onChange={(e) => setEditData({ ...editData, otherAllowances: e.target.value })}
-                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
-                    />
+                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2" />
                   </div>
                 </div>
 
-                <div className="mb-4 p-3 bg-gray-50 rounded-md">
-                  <div className="text-sm text-gray-600">
-                    <div className="flex justify-between">
-                      <span>Working Days:</span>
-                      <span>{selectedPayroll.workingDays}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Present Days:</span>
-                      <span className="text-green-600">{selectedPayroll.presentDays}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Leave Days:</span>
-                      <span className="text-blue-600">{selectedPayroll.leaveDays}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Absence Days:</span>
-                      <span className="text-red-600">{selectedPayroll.absenceDays}</span>
-                    </div>
-                  </div>
+                {/* Attendance summary */}
+                <div className="mb-4 p-3 bg-gray-50 rounded-md text-sm text-gray-600 grid grid-cols-2 gap-x-6 gap-y-1">
+                  <div className="flex justify-between"><span>Working Days:</span><span>{selectedPayroll.workingDays}</span></div>
+                  <div className="flex justify-between"><span>Present Days:</span><span className="text-green-600">{selectedPayroll.presentDays}</span></div>
+                  <div className="flex justify-between"><span>Leave Days:</span><span className="text-blue-600">{selectedPayroll.leaveDays}</span></div>
+                  <div className="flex justify-between"><span>Absence Days:</span><span className="text-red-600">{selectedPayroll.absenceDays}</span></div>
                 </div>
 
+                {/* Adjustments */}
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold text-gray-800">Adjustments</h3>
+                    <button type="button" onClick={addAdjustmentRow}
+                      className="text-sm px-3 py-1 bg-primary-50 text-primary-700 border border-primary-300 rounded-md hover:bg-primary-100">
+                      + Add Line
+                    </button>
+                  </div>
+
+                  {adjustments.length === 0 && (
+                    <p className="text-xs text-gray-400 italic">No adjustments. Click "Add Line" to add deductions (e.g. NPF, NSF) or additions (e.g. bonus).</p>
+                  )}
+
+                  <div className="space-y-2">
+                    {adjustments.map((adj, idx) => (
+                      <div key={idx} className="flex gap-2 items-center">
+                        <input
+                          type="text"
+                          placeholder="Label (e.g. NPF)"
+                          value={adj.label}
+                          onChange={(e) => updateAdjustmentRow(idx, 'label', e.target.value)}
+                          className="flex-1 rounded-md border-gray-300 border p-2 text-sm focus:border-primary-500 focus:ring-primary-500"
+                        />
+                        <select
+                          value={adj.type}
+                          onChange={(e) => updateAdjustmentRow(idx, 'type', e.target.value)}
+                          className="rounded-md border-gray-300 border p-2 text-sm focus:border-primary-500 focus:ring-primary-500"
+                        >
+                          <option value="DEDUCTION">Deduction</option>
+                          <option value="ADDITION">Addition</option>
+                        </select>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="Amount"
+                          value={adj.amount}
+                          onChange={(e) => updateAdjustmentRow(idx, 'amount', e.target.value)}
+                          className="w-28 rounded-md border-gray-300 border p-2 text-sm focus:border-primary-500 focus:ring-primary-500"
+                        />
+                        <button type="button" onClick={() => removeAdjustmentRow(idx)}
+                          className="text-red-500 hover:text-red-700 text-lg font-bold px-1"
+                          title="Remove">×</button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Live preview of totals */}
+                  {adjustments.length > 0 && (
+                    <div className="mt-3 p-2 bg-gray-50 rounded text-xs text-gray-600 space-y-0.5">
+                      {adjustments.filter(a => a.type === 'DEDUCTION' && a.amount).map((a, i) => (
+                        <div key={i} className="flex justify-between text-red-600">
+                          <span>− {a.label || 'Deduction'}</span>
+                          <span>Rs {parseFloat(a.amount || '0').toFixed(2)}</span>
+                        </div>
+                      ))}
+                      {adjustments.filter(a => a.type === 'ADDITION' && a.amount).map((a, i) => (
+                        <div key={i} className="flex justify-between text-green-600">
+                          <span>+ {a.label || 'Addition'}</span>
+                          <span>Rs {parseFloat(a.amount || '0').toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Remarks */}
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
-                  <textarea
-                    value={editData.remarks}
+                  <textarea value={editData.remarks}
                     onChange={(e) => setEditData({ ...editData, remarks: e.target.value })}
                     rows={2}
                     className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
-                    placeholder="Optional remarks..."
-                  />
+                    placeholder="Optional remarks..." />
                 </div>
 
                 <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowModal(false)}
-                    className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
-                  >
+                  <button type="button" onClick={() => setShowModal(false)}
+                    className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400">
                     Cancel
                   </button>
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50"
-                  >
+                  <button type="submit" disabled={saving}
+                    className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50">
                     {saving ? 'Saving...' : 'Save Changes'}
                   </button>
                 </div>

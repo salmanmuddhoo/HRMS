@@ -53,6 +53,7 @@ export const getAllPayrolls = async (req: AuthRequest, res: Response) => {
             downloadedAt: true,
           },
         },
+        adjustments: { orderBy: { createdAt: 'asc' } },
       },
       orderBy: [{ year: 'desc' }, { month: 'desc' }],
     });
@@ -82,6 +83,7 @@ export const getPayrollById = async (req: AuthRequest, res: Response) => {
             jobTitle: true,
           },
         },
+        adjustments: { orderBy: { createdAt: 'asc' } },
       },
     });
 
@@ -362,12 +364,9 @@ export const lockPayroll = async (req: AuthRequest, res: Response) => {
 export const updatePayroll = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { baseSalary, travellingAllowance, otherAllowances, remarks } =
-      req.body;
+    const { baseSalary, travellingAllowance, otherAllowances, remarks, adjustments } = req.body;
 
-    const payroll = await prisma.payroll.findUnique({
-      where: { id },
-    });
+    const payroll = await prisma.payroll.findUnique({ where: { id } });
 
     if (!payroll) {
       return sendError(res, 'Payroll not found', 404);
@@ -377,52 +376,54 @@ export const updatePayroll = async (req: AuthRequest, res: Response) => {
       return sendError(res, 'Cannot update locked payroll', 400);
     }
 
-    // Recalculate if amounts changed
-    const newBaseSalary = baseSalary
-      ? parseFloat(baseSalary)
-      : Number(payroll.baseSalary);
-    const newTravellingAllowance = travellingAllowance
-      ? parseFloat(travellingAllowance)
-      : Number(payroll.travellingAllowance);
-    const newOtherAllowances = otherAllowances
-      ? parseFloat(otherAllowances)
-      : Number(payroll.otherAllowances);
+    // Validate and normalise adjustments
+    type AdjInput = { label: string; type: 'DEDUCTION' | 'ADDITION'; amount: number };
+    const adjList: AdjInput[] = Array.isArray(adjustments)
+      ? adjustments
+          .filter((a: any) => a.label && (a.type === 'DEDUCTION' || a.type === 'ADDITION') && !isNaN(parseFloat(a.amount)) && parseFloat(a.amount) > 0)
+          .map((a: any) => ({ label: String(a.label).trim(), type: a.type, amount: parseFloat(a.amount) }))
+      : [];
 
-    const dailyTravellingAllowance =
-      newTravellingAllowance / payroll.workingDays;
-    const travellingDeduction = dailyTravellingAllowance * payroll.absenceDays;
+    const newBaseSalary = baseSalary ? parseFloat(baseSalary) : Number(payroll.baseSalary);
+    const newTravellingAllowance = travellingAllowance ? parseFloat(travellingAllowance) : Number(payroll.travellingAllowance);
+    const newOtherAllowances = otherAllowances ? parseFloat(otherAllowances) : Number(payroll.otherAllowances);
 
-    const grossSalary =
-      newBaseSalary + newTravellingAllowance + newOtherAllowances;
-    const totalDeductions = travellingDeduction;
-    const netSalary = grossSalary - totalDeductions;
+    const travellingDeduction = (newTravellingAllowance / payroll.workingDays) * payroll.absenceDays;
+    const grossSalary = newBaseSalary + newTravellingAllowance + newOtherAllowances;
 
-    const updatedPayroll = await prisma.payroll.update({
-      where: { id },
-      data: {
-        baseSalary: newBaseSalary,
-        travellingAllowance: newTravellingAllowance,
-        otherAllowances: newOtherAllowances,
-        travellingDeduction,
-        totalDeductions,
-        grossSalary,
-        netSalary,
-        remarks,
-      },
-      include: {
-        employee: {
-          select: {
-            id: true,
-            employeeId: true,
-            firstName: true,
-            lastName: true,
-            department: true,
-          },
+    const adjDeductions = adjList.filter(a => a.type === 'DEDUCTION').reduce((s, a) => s + a.amount, 0);
+    const adjAdditions  = adjList.filter(a => a.type === 'ADDITION').reduce((s, a) => s + a.amount, 0);
+    const totalDeductions = travellingDeduction + adjDeductions;
+    const netSalary = grossSalary + adjAdditions - totalDeductions;
+
+    const updatedPayroll = await prisma.$transaction(async (tx) => {
+      // Replace all adjustments atomically
+      await tx.payrollAdjustment.deleteMany({ where: { payrollId: id } });
+      if (adjList.length > 0) {
+        await tx.payrollAdjustment.createMany({
+          data: adjList.map(a => ({ payrollId: id, label: a.label, type: a.type, amount: a.amount })),
+        });
+      }
+
+      return tx.payroll.update({
+        where: { id },
+        data: {
+          baseSalary: newBaseSalary,
+          travellingAllowance: newTravellingAllowance,
+          otherAllowances: newOtherAllowances,
+          travellingDeduction,
+          totalDeductions,
+          grossSalary,
+          netSalary,
+          remarks,
         },
-      },
+        include: {
+          employee: { select: { id: true, employeeId: true, firstName: true, lastName: true, department: true } },
+          adjustments: { orderBy: { createdAt: 'asc' } },
+        },
+      });
     });
 
-    // Create audit log
     await prisma.auditLog.create({
       data: {
         userId: req.user!.userId,

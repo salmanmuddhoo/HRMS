@@ -2,6 +2,12 @@ import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
 
+interface PayrollAdjustmentItem {
+  label: string;
+  type: 'DEDUCTION' | 'ADDITION';
+  amount: number;
+}
+
 interface PayslipData {
   employee: {
     employeeId: string;
@@ -26,6 +32,7 @@ interface PayslipData {
     totalDeductions: number;
     grossSalary: number;
     netSalary: number;
+    adjustments?: PayrollAdjustmentItem[];
   };
   company: {
     name: string;
@@ -166,6 +173,12 @@ export const generatePayslipPDF = async (
       amtRow('Travelling Allowance:',   `Rs ${data.payroll.travellingAllowance.toFixed(2)}`,  y);
       y += ROW_H;
       amtRow('Other Allowances:',       `Rs ${data.payroll.otherAllowances.toFixed(2)}`,      y);
+      // Additional adjustment ADDITION lines
+      const additions = (data.payroll.adjustments || []).filter(a => a.type === 'ADDITION');
+      for (const adj of additions) {
+        y += ROW_H;
+        amtRow(`${adj.label}:`, `Rs ${adj.amount.toFixed(2)}`, y);
+      }
       y += ROW_H + 4;
       amtRow('Gross Salary:',           `Rs ${data.payroll.grossSalary.toFixed(2)}`,          y, true);
       y += ROW_H + 8;
@@ -176,6 +189,12 @@ export const generatePayslipPDF = async (
       heading('Deductions');
       y = doc.y;
       amtRow('Travelling Allowance Deduction:', `Rs ${data.payroll.travellingDeduction.toFixed(2)}`, y);
+      // Additional adjustment DEDUCTION lines
+      const deductions = (data.payroll.adjustments || []).filter(a => a.type === 'DEDUCTION');
+      for (const adj of deductions) {
+        y += ROW_H;
+        amtRow(`${adj.label}:`, `Rs ${adj.amount.toFixed(2)}`, y);
+      }
       y += ROW_H + 4;
       amtRow('Total Deductions:', `Rs ${data.payroll.totalDeductions.toFixed(2)}`, y, true);
       y += ROW_H + 8;

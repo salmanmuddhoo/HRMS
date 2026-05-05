@@ -459,6 +459,47 @@ export const updatePayroll = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const resetMonthlyPayroll = async (req: AuthRequest, res: Response) => {
+  try {
+    const { month, year } = req.body;
+
+    if (!month || !year) {
+      return sendError(res, 'Month and year are required', 400);
+    }
+
+    const monthNum = parseInt(month);
+    const yearNum = parseInt(year);
+
+    const existing = await prisma.payroll.findFirst({
+      where: { month: monthNum, year: yearNum },
+    });
+
+    if (!existing) {
+      return sendError(res, `No payroll found for ${monthNum}/${yearNum}`, 404);
+    }
+
+    // Delete all payrolls for the month (cascade handles adjustments, compensations, payslips)
+    const { count } = await prisma.payroll.deleteMany({
+      where: { month: monthNum, year: yearNum },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.userId,
+        action: 'RESET_PAYROLL',
+        entity: 'PAYROLL',
+        entityId: `${monthNum}-${yearNum}`,
+        changes: JSON.stringify({ month: monthNum, year: yearNum, deletedCount: count }),
+      },
+    });
+
+    return sendSuccess(res, { month: monthNum, year: yearNum, deletedCount: count }, `Payroll for ${monthNum}/${yearNum} has been reset`);
+  } catch (error: any) {
+    console.error('Reset payroll error:', error);
+    return sendError(res, 'Failed to reset payroll', 500);
+  }
+};
+
 export const deletePayroll = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;

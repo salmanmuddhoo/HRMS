@@ -102,6 +102,7 @@ export const createEmployee = async (req: AuthRequest, res: Response) => {
       otherAllowances,
       localLeaveBalance,
       sickLeaveBalance,
+      compensation,
       useProration,
       password,
       role,
@@ -175,6 +176,7 @@ export const createEmployee = async (req: AuthRequest, res: Response) => {
         baseSalary: parseFloat(baseSalary),
         travellingAllowance: parseFloat(travellingAllowance || 0),
         otherAllowances: parseFloat(otherAllowances || 0),
+        compensation: compensation ? parseFloat(compensation) : 0,
         localLeaveBalance: finalLocalLeave,
         sickLeaveBalance: finalSickLeave,
         status: 'ACTIVE',
@@ -213,7 +215,7 @@ export const updateEmployee = async (req: AuthRequest, res: Response) => {
     const {
       firstName, lastName, phone, department, jobTitle, joiningDate,
       baseSalary, travellingAllowance, otherAllowances,
-      localLeaveBalance, sickLeaveBalance, status, role,
+      localLeaveBalance, sickLeaveBalance, compensation, status, role,
     } = req.body;
 
     const employee = await prisma.employee.findUnique({
@@ -234,6 +236,7 @@ export const updateEmployee = async (req: AuthRequest, res: Response) => {
     const bs = parseDecimal(baseSalary); if (bs !== undefined && !isNaN(bs)) data.baseSalary = bs;
     const ta = parseDecimal(travellingAllowance); if (ta !== undefined && !isNaN(ta)) data.travellingAllowance = ta;
     const oa = parseDecimal(otherAllowances); if (oa !== undefined && !isNaN(oa)) data.otherAllowances = oa;
+    const comp = parseDecimal(compensation); if (comp !== undefined && !isNaN(comp)) data.compensation = comp;
     const llb = parseDecimal(localLeaveBalance); if (llb !== undefined && !isNaN(llb)) data.localLeaveBalance = llb;
     const slb = parseDecimal(sickLeaveBalance); if (slb !== undefined && !isNaN(slb)) data.sickLeaveBalance = slb;
 
@@ -408,5 +411,35 @@ export const resetEmployeePassword = async (req: AuthRequest, res: Response) => 
   } catch (error: any) {
     console.error('Reset password error:', error);
     return sendError(res, 'Failed to reset password', 500);
+  }
+};
+
+export const bulkSetCompensation = async (req: AuthRequest, res: Response) => {
+  try {
+    const { amount } = req.body;
+    const compensationAmount = parseFloat(amount);
+    if (isNaN(compensationAmount) || compensationAmount < 0) {
+      return sendError(res, 'Valid compensation amount is required', 400);
+    }
+
+    const result = await prisma.employee.updateMany({
+      where: { status: 'ACTIVE' },
+      data: { compensation: compensationAmount },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.userId,
+        action: 'BULK_SET_COMPENSATION',
+        entity: 'EMPLOYEE',
+        entityId: 'ALL',
+        changes: JSON.stringify({ amount: compensationAmount, affectedCount: result.count }),
+      },
+    });
+
+    return sendSuccess(res, { affectedCount: result.count }, `Compensation set to Rs ${compensationAmount} for ${result.count} active employees`);
+  } catch (error: any) {
+    console.error('Bulk set compensation error:', error);
+    return sendError(res, 'Failed to set compensation', 500);
   }
 };

@@ -32,22 +32,19 @@ export const generatePayslip = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // Get company details from system config
-    const companyName =
-      (await prisma.systemConfig.findUnique({ where: { key: 'COMPANY_NAME' } }))
-        ?.value || process.env.COMPANY_NAME || 'Company Name';
-    const companyAddress =
-      (
-        await prisma.systemConfig.findUnique({
-          where: { key: 'COMPANY_ADDRESS' },
-        })
-      )?.value || process.env.COMPANY_ADDRESS || 'Company Address';
-    const companyPhone =
-      (await prisma.systemConfig.findUnique({ where: { key: 'COMPANY_PHONE' } }))
-        ?.value || process.env.COMPANY_PHONE || 'N/A';
-    const companyEmail =
-      (await prisma.systemConfig.findUnique({ where: { key: 'COMPANY_EMAIL' } }))
-        ?.value || process.env.COMPANY_EMAIL || 'N/A';
+    // Get company details and compensation label from system config
+    const [companyNameCfg, companyAddressCfg, companyPhoneCfg, companyEmailCfg, compensationLabelCfg] = await Promise.all([
+      prisma.systemConfig.findUnique({ where: { key: 'COMPANY_NAME' } }),
+      prisma.systemConfig.findUnique({ where: { key: 'COMPANY_ADDRESS' } }),
+      prisma.systemConfig.findUnique({ where: { key: 'COMPANY_PHONE' } }),
+      prisma.systemConfig.findUnique({ where: { key: 'COMPANY_EMAIL' } }),
+      prisma.systemConfig.findUnique({ where: { key: 'COMPENSATION_LABEL' } }),
+    ]);
+    const companyName = companyNameCfg?.value || process.env.COMPANY_NAME || 'Company Name';
+    const companyAddress = companyAddressCfg?.value || process.env.COMPANY_ADDRESS || 'Company Address';
+    const companyPhone = companyPhoneCfg?.value || process.env.COMPANY_PHONE || 'N/A';
+    const companyEmail = companyEmailCfg?.value || process.env.COMPANY_EMAIL || 'N/A';
+    const compensationLabel = compensationLabelCfg?.value || 'Government Compensation';
 
     // Prepare payslip data
     const payslipData = {
@@ -70,6 +67,7 @@ export const generatePayslip = async (req: AuthRequest, res: Response) => {
         baseSalary: Number(payroll.baseSalary),
         travellingAllowance: Number(payroll.travellingAllowance),
         otherAllowances: Number(payroll.otherAllowances),
+        compensation: Number(payroll.compensation),
         travellingDeduction: Number(payroll.travellingDeduction),
         totalDeductions: Number(payroll.totalDeductions),
         grossSalary: Number(payroll.grossSalary),
@@ -80,6 +78,7 @@ export const generatePayslip = async (req: AuthRequest, res: Response) => {
           amount: Number(a.amount),
         })),
       },
+      compensationLabel,
       company: {
         name: companyName,
         address: companyAddress,
@@ -155,16 +154,20 @@ export const downloadPayslip = async (req: AuthRequest, res: Response) => {
     if (!payslip.pdfPath || !fs.existsSync(payslip.pdfPath)) {
       const pr = payslip.payroll;
       const emp = pr.employee;
-      const companyName = (await prisma.systemConfig.findUnique({ where: { key: 'COMPANY_NAME' } }))?.value || process.env.COMPANY_NAME || 'Company Name';
-      const companyAddress = (await prisma.systemConfig.findUnique({ where: { key: 'COMPANY_ADDRESS' } }))?.value || process.env.COMPANY_ADDRESS || 'Company Address';
-      const companyPhone = (await prisma.systemConfig.findUnique({ where: { key: 'COMPANY_PHONE' } }))?.value || process.env.COMPANY_PHONE || 'N/A';
-      const companyEmail = (await prisma.systemConfig.findUnique({ where: { key: 'COMPANY_EMAIL' } }))?.value || process.env.COMPANY_EMAIL || 'N/A';
+      const [cnCfg, caCfg, cpCfg, ceCfg, clCfg] = await Promise.all([
+        prisma.systemConfig.findUnique({ where: { key: 'COMPANY_NAME' } }),
+        prisma.systemConfig.findUnique({ where: { key: 'COMPANY_ADDRESS' } }),
+        prisma.systemConfig.findUnique({ where: { key: 'COMPANY_PHONE' } }),
+        prisma.systemConfig.findUnique({ where: { key: 'COMPANY_EMAIL' } }),
+        prisma.systemConfig.findUnique({ where: { key: 'COMPENSATION_LABEL' } }),
+      ]);
       const uploadDir = process.env.VERCEL ? '/tmp' : (process.env.UPLOAD_DIR || 'uploads');
       const regeneratedPath = path.join(uploadDir, 'payslips', path.basename(payslip.pdfPath || `payslip_${emp.employeeId}_${pr.month}_${pr.year}.pdf`));
       await generatePayslipPDF({
         employee: { employeeId: emp.employeeId, firstName: emp.firstName, lastName: emp.lastName, email: emp.email, department: emp.department, jobTitle: emp.jobTitle },
-        payroll: { id: pr.id, month: pr.month, year: pr.year, workingDays: pr.workingDays, presentDays: pr.presentDays, leaveDays: pr.leaveDays, absenceDays: pr.absenceDays, baseSalary: Number(pr.baseSalary), travellingAllowance: Number(pr.travellingAllowance), otherAllowances: Number(pr.otherAllowances), travellingDeduction: Number(pr.travellingDeduction), totalDeductions: Number(pr.totalDeductions), grossSalary: Number(pr.grossSalary), netSalary: Number(pr.netSalary), adjustments: (pr.adjustments || []).map((a: any) => ({ label: a.label, type: a.type, amount: Number(a.amount) })) },
-        company: { name: companyName, address: companyAddress, phone: companyPhone, email: companyEmail },
+        payroll: { id: pr.id, month: pr.month, year: pr.year, workingDays: pr.workingDays, presentDays: pr.presentDays, leaveDays: pr.leaveDays, absenceDays: pr.absenceDays, baseSalary: Number(pr.baseSalary), travellingAllowance: Number(pr.travellingAllowance), otherAllowances: Number(pr.otherAllowances), compensation: Number(pr.compensation), travellingDeduction: Number(pr.travellingDeduction), totalDeductions: Number(pr.totalDeductions), grossSalary: Number(pr.grossSalary), netSalary: Number(pr.netSalary), adjustments: (pr.adjustments || []).map((a: any) => ({ label: a.label, type: a.type, amount: Number(a.amount) })) },
+        compensationLabel: clCfg?.value || 'Government Compensation',
+        company: { name: cnCfg?.value || process.env.COMPANY_NAME || 'Company Name', address: caCfg?.value || process.env.COMPANY_ADDRESS || 'Company Address', phone: cpCfg?.value || process.env.COMPANY_PHONE || 'N/A', email: ceCfg?.value || process.env.COMPANY_EMAIL || 'N/A' },
       }, regeneratedPath);
       await prisma.payslip.update({ where: { payrollId }, data: { pdfPath: regeneratedPath } });
       payslip.pdfPath = regeneratedPath;

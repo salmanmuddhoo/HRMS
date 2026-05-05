@@ -28,12 +28,14 @@ interface PayslipData {
     baseSalary: number;
     travellingAllowance: number;
     otherAllowances: number;
+    compensation: number;
     travellingDeduction: number;
     totalDeductions: number;
     grossSalary: number;
     netSalary: number;
     adjustments?: PayrollAdjustmentItem[];
   };
+  compensationLabel?: string;
   company: {
     name: string;
     address: string;
@@ -173,6 +175,10 @@ export const generatePayslipPDF = async (
       amtRow('Travelling Allowance:',   `Rs ${data.payroll.travellingAllowance.toFixed(2)}`,  y);
       y += ROW_H;
       amtRow('Other Allowances:',       `Rs ${data.payroll.otherAllowances.toFixed(2)}`,      y);
+      if (data.payroll.compensation > 0) {
+        y += ROW_H;
+        amtRow(`${data.compensationLabel || 'Government Compensation'}:`, `Rs ${data.payroll.compensation.toFixed(2)}`, y);
+      }
       // Additional adjustment ADDITION lines
       const additions = (data.payroll.adjustments || []).filter(a => a.type === 'ADDITION');
       for (const adj of additions) {

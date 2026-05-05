@@ -97,6 +97,10 @@ class ApiService {
     return this.request({ method: 'POST', url: `/employees/${id}/reset-password`, data: { newPassword } });
   }
 
+  async bulkSetCompensation(amount: number) {
+    return this.request({ method: 'POST', url: '/employees/bulk-compensation', data: { amount } });
+  }
+
   async getEmployeeStats() {
     return this.request({ method: 'GET', url: '/employees/stats' });
   }

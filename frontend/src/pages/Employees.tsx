@@ -47,6 +47,9 @@ const Employees: React.FC = () => {
   const [newPassword, setNewPassword] = useState('');
   const [leaveHistory, setLeaveHistory] = useState<{ emp: Employee; leaves: Leave[] } | null>(null);
   const [leaveHistoryLoading, setLeaveHistoryLoading] = useState(false);
+  const [showCompModal, setShowCompModal] = useState(false);
+  const [compAmount, setCompAmount] = useState('');
+  const [settingComp, setSettingComp] = useState(false);
 
   useEffect(() => {
     fetchEmployees();
@@ -101,6 +104,22 @@ const Employees: React.FC = () => {
     } catch { showMsg('error', 'Failed to reset password.'); }
   };
 
+  const handleBulkCompensation = async () => {
+    const amount = parseFloat(compAmount);
+    if (isNaN(amount) || amount < 0) { setError('Enter a valid amount'); return; }
+    setSettingComp(true);
+    try {
+      const res = await api.bulkSetCompensation(amount);
+      if ((res as any).success) {
+        showMsg('success', (res as any).message || 'Compensation updated for all active employees');
+        setShowCompModal(false);
+        setCompAmount('');
+        fetchEmployees();
+      }
+    } catch { showMsg('error', 'Failed to set compensation'); }
+    setSettingComp(false);
+  };
+
   const handleViewLeaves = async (emp: Employee) => {
     setLeaveHistoryLoading(true);
     setLeaveHistory({ emp, leaves: [] });
@@ -123,12 +142,20 @@ const Employees: React.FC = () => {
       <div className="px-4 py-6">
         <div className="flex flex-wrap gap-3 justify-between items-center mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Employees</h1>
-          <Link
-            to="/employees/add"
-            className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 text-sm font-medium"
-          >
-            + Add Employee
-          </Link>
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setShowCompModal(true); setCompAmount(''); }}
+              className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 text-sm font-medium"
+            >
+              Set Compensation
+            </button>
+            <Link
+              to="/employees/add"
+              className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 text-sm font-medium"
+            >
+              + Add Employee
+            </Link>
+          </div>
         </div>
 
         {success && <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md text-green-700 text-sm">{success}</div>}
@@ -349,6 +376,48 @@ const Employees: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Bulk Compensation Modal */}
+      {showCompModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Set Government Compensation</h3>
+              <button onClick={() => setShowCompModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              This will set the compensation amount for <strong>all active employees</strong>. Individual employees can still have their own compensation adjusted from their profile.
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Compensation Amount (Rs)</label>
+              <input
+                type="number"
+                value={compAmount}
+                onChange={(e) => setCompAmount(e.target.value)}
+                min="0"
+                step="0.01"
+                placeholder="e.g. 1300"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowCompModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkCompensation}
+                disabled={settingComp || !compAmount}
+                className="px-4 py-2 bg-amber-600 text-white rounded-md text-sm hover:bg-amber-700 disabled:opacity-50"
+              >
+                {settingComp ? 'Applying...' : 'Apply to All'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };

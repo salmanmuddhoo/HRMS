@@ -13,7 +13,6 @@ const Settings: React.FC = () => {
     DEFAULT_SICK_LEAVE: '10',
     WORKING_DAYS_PER_MONTH: '22',
     PAYROLL_CYCLE_START_DAY: '1',
-    COMPENSATION_LABEL: 'Government Compensation',
     COMPANY_NAME: '',
     COMPANY_ADDRESS: '',
     COMPANY_PHONE: '',
@@ -77,7 +76,6 @@ const Settings: React.FC = () => {
       DEFAULT_SICK_LEAVE: 'Default annual sick leave days for new employees',
       WORKING_DAYS_PER_MONTH: 'Number of working days per month for payroll calculation',
       PAYROLL_CYCLE_START_DAY: 'Day of month the payroll cycle starts (1 = standard calendar month)',
-      COMPENSATION_LABEL: 'Label for government compensation line on payslips (e.g. Compensation 2025)',
       COMPANY_NAME: 'Company name for payslips',
       COMPANY_ADDRESS: 'Company address for payslips',
       COMPANY_PHONE: 'Company phone number',
@@ -173,23 +171,6 @@ const Settings: React.FC = () => {
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
                 />
                 <p className="mt-1 text-sm text-gray-500">Used for calculating per-day salary deductions</p>
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Government Compensation Label
-                </label>
-                <input
-                  type="text"
-                  name="COMPENSATION_LABEL"
-                  value={config.COMPENSATION_LABEL}
-                  onChange={handleChange}
-                  placeholder="e.g. Compensation 2025"
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
-                />
-                <p className="mt-1 text-sm text-gray-500">
-                  This label appears on the payslip earnings line for government-mandated compensation. Use "Set Compensation" on the Employees page to apply an amount to all employees.
-                </p>
               </div>
 
               <div>

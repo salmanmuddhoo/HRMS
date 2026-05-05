@@ -30,6 +30,7 @@ const EmployeeForm: React.FC = () => {
     lastName: '',
     email: '',
     phone: '',
+    nationalId: '',
     department: '',
     jobTitle: '',
     joiningDate: '',
@@ -81,6 +82,7 @@ const EmployeeForm: React.FC = () => {
           lastName: emp.lastName,
           email: emp.email,
           phone: emp.phone || '',
+          nationalId: emp.nationalId || '',
           department: emp.department,
           jobTitle: emp.jobTitle,
           joiningDate: new Date(emp.joiningDate).toISOString().split('T')[0],
@@ -384,6 +386,19 @@ const EmployeeForm: React.FC = () => {
             </div>
 
             <div>
+              <label className="block text-sm font-medium text-gray-700">National ID *</label>
+              <input
+                type="text"
+                name="nationalId"
+                value={formData.nationalId}
+                onChange={handleChange}
+                required
+                placeholder="e.g. A1234567890123"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
+              />
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-gray-700">Joining Date *</label>
               <input
                 type="date"
@@ -574,11 +589,11 @@ const EmployeeForm: React.FC = () => {
               </>
             )}
 
-            {/* Government Compensations (edit mode only) */}
+            {/* Compensations (edit mode only) */}
             {isEdit && (
               <div className="md:col-span-2 mt-4">
-                <h2 className="text-lg font-medium text-gray-900 mb-1">Government Compensations</h2>
-                <p className="text-sm text-gray-500 mb-4">Each year's government compensation is a separate entry. Changes are saved when you click "Update Employee".</p>
+                <h2 className="text-lg font-medium text-gray-900 mb-1">Compensations</h2>
+                <p className="text-sm text-gray-500 mb-4">Each year's compensation is a separate entry. Changes are saved when you click "Update Employee".</p>
                 {compError && <p className="mb-2 text-sm text-red-600">{compError}</p>}
                 {compensations.length > 0 && (
                   <table className="w-full text-sm mb-4">

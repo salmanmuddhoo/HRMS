@@ -14,10 +14,18 @@ const Dashboard: React.FC = () => {
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [upcomingEmployeeLeaves, setUpcomingEmployeeLeaves] = useState<any[]>([]);
+  // Employee-specific dashboard data
+  const [myUpcomingLeaves, setMyUpcomingLeaves] = useState<any[]>([]);
+  const [upcomingHolidays, setUpcomingHolidays] = useState<any[]>([]);
 
   useEffect(() => {
     fetchDashboardStats();
-    if (isEmployer) fetchUpcomingEmployeeLeaves();
+    if (isEmployer) {
+      fetchUpcomingEmployeeLeaves();
+    } else {
+      fetchMyUpcomingLeaves();
+      fetchUpcomingHolidays();
+    }
   }, [isEmployer]);
 
   const fetchDashboardStats = async () => {
@@ -43,6 +51,35 @@ const Dashboard: React.FC = () => {
           .sort((a: any, b: any) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
           .slice(0, 5);
         setUpcomingEmployeeLeaves(upcoming);
+      }
+    } catch {}
+  };
+
+  const fetchMyUpcomingLeaves = async () => {
+    try {
+      const res = await api.getLeaves({ status: 'APPROVED' });
+      if ((res as any).success) {
+        const today = new Date();
+        // Show leaves up to end of next month
+        const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+        const upcoming = ((res as any).data || [])
+          .filter((l: any) => new Date(l.endDate) >= today && new Date(l.startDate) <= nextMonthEnd)
+          .sort((a: any, b: any) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+        setMyUpcomingLeaves(upcoming);
+      }
+    } catch {}
+  };
+
+  const fetchUpcomingHolidays = async () => {
+    try {
+      const res = await api.getUpcomingHolidays(20);
+      if ((res as any).success) {
+        const today = new Date();
+        // Show holidays up to end of next month
+        const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+        const filtered = ((res as any).data || [])
+          .filter((h: any) => new Date(h.date) <= nextMonthEnd);
+        setUpcomingHolidays(filtered);
       }
     } catch {}
   };
@@ -94,9 +131,14 @@ const Dashboard: React.FC = () => {
   return (
     <Layout>
       <div className="px-4 py-6 sm:px-0">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">
-          Welcome, {user?.employee ? `${user.employee.firstName} ${user.employee.lastName}` : user?.email}!
-        </h1>
+        <div className="mb-6">
+          <p className="text-2xl font-bold text-green-800">
+            السلام عليكم — Assalamoualaikoum
+          </p>
+          <p className="text-lg text-gray-600 mt-1">
+            {user?.employee ? `${user.employee.firstName} ${user.employee.lastName}` : user?.email}
+          </p>
+        </div>
 
         {isEmployer && stats && (
           <>
@@ -285,42 +327,95 @@ const Dashboard: React.FC = () => {
         )}
 
         {!isEmployer && user?.employee && (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Leave Balance</h3>
-                <div className="mt-4">
+          <div className="space-y-6">
+            {/* Quick-access cards */}
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+              <div className="bg-white overflow-hidden shadow rounded-lg">
+                <div className="p-5">
+                  <h3 className="text-lg font-medium text-gray-900 mb-3">Leave Balance</h3>
                   <p className="text-sm text-gray-600">
-                    Local Leave: <span className="font-semibold">{user.employee.localLeaveBalance} days</span>
+                    Annual Leave: <span className="font-semibold">{user.employee.localLeaveBalance} days</span>
                   </p>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-gray-600 mb-4">
                     Sick Leave: <span className="font-semibold">{user.employee.sickLeaveBalance} days</span>
                   </p>
+                  <Link
+                    to="/leaves"
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
+                  >
+                    Apply for Leave
+                  </Link>
                 </div>
-                <Link
-                  to="/leaves"
-                  className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
-                >
-                  Apply for Leave
-                </Link>
+              </div>
+
+              <div className="bg-white overflow-hidden shadow rounded-lg">
+                <div className="p-5">
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">My Leaves</h3>
+                  <Link to="/leaves" className="text-primary-600 hover:text-primary-900 text-sm">
+                    View all leaves →
+                  </Link>
+                </div>
+              </div>
+
+              <div className="bg-white overflow-hidden shadow rounded-lg">
+                <div className="p-5">
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Payslips</h3>
+                  <Link to="/payslips" className="text-primary-600 hover:text-primary-900 text-sm">
+                    View payslips →
+                  </Link>
+                </div>
               </div>
             </div>
 
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">My Leaves</h3>
-                <Link to="/leaves" className="text-primary-600 hover:text-primary-900">
-                  View all leaves →
-                </Link>
+            {/* My upcoming approved leaves */}
+            <div className="bg-white shadow rounded-lg">
+              <div className="px-4 py-5 sm:p-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">My Upcoming Leaves</h3>
+                {myUpcomingLeaves.length === 0 ? (
+                  <p className="text-sm text-gray-500">No upcoming approved leaves.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {myUpcomingLeaves.map((leave) => (
+                      <div key={leave.id} className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            {leave.leaveType === 'LOCAL' ? 'Annual' : 'Sick'} Leave
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {new Date(leave.startDate).toLocaleDateString()} – {new Date(leave.endDate).toLocaleDateString()}{' '}
+                            ({leave.totalDays} {leave.totalDays === 1 ? 'day' : 'days'})
+                          </p>
+                          {leave.reason && <p className="text-xs text-gray-400 truncate">{leave.reason}</p>}
+                        </div>
+                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800">Approved</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Payslips</h3>
-                <Link to="/payslips" className="text-primary-600 hover:text-primary-900">
-                  View payslips →
-                </Link>
+            {/* Upcoming public holidays */}
+            <div className="bg-white shadow rounded-lg">
+              <div className="px-4 py-5 sm:p-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Upcoming Public Holidays</h3>
+                {upcomingHolidays.length === 0 ? (
+                  <p className="text-sm text-gray-500">No public holidays in the next two months.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {upcomingHolidays.map((holiday) => (
+                      <div key={holiday.id} className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{holiday.name}</p>
+                          {holiday.description && <p className="text-xs text-gray-500">{holiday.description}</p>}
+                        </div>
+                        <span className="text-sm text-gray-500 ml-4 shrink-0">
+                          {new Date(holiday.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>

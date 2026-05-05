@@ -30,7 +30,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Attendance', href: '/attendance', forStaff: true },
     { name: 'Payroll', href: '/payroll', forStaff: true },
     { name: 'Payslips', href: '/payslips', forAll: true },
-    { name: 'Holidays', href: '/holidays', forStaff: true },
+    { name: 'Holidays', href: '/holidays', forAdmin: true },
     { name: 'Reports', href: '/reports', forStaff: true },
     { name: 'Settings', href: '/settings', forAdmin: true },
   ];

@@ -16,6 +16,7 @@ interface PayslipData {
     email: string;
     department: string;
     jobTitle: string;
+    nationalId?: string;
   };
   payroll: {
     id: string;
@@ -151,7 +152,10 @@ export const generatePayslipPDF = async (
       infoRow2('Employee ID:', data.employee.employeeId,
                'Name:', `${data.employee.firstName} ${data.employee.lastName}`, y);
       y += ROW_H;
-      infoRow2('Job Title:', data.employee.jobTitle,
+      infoRow2('National ID:', data.employee.nationalId || 'N/A',
+               'Job Title:', data.employee.jobTitle, y);
+      y += ROW_H;
+      infoRow2('Department:', data.employee.department,
                'Email:', data.employee.email, y);
       y += ROW_H + 8;
       doc.y = y;

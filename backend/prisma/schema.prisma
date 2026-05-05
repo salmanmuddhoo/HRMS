@@ -69,6 +69,7 @@ model Employee {
   lastName         String
   email            String           @unique
   phone            String?
+  nationalId       String           @default("")
   department       String
   jobTitle         String
   joiningDate      DateTime

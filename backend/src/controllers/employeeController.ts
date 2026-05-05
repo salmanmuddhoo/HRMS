@@ -84,6 +84,7 @@ export const createEmployee = async (req: AuthRequest, res: Response) => {
       lastName,
       email,
       phone,
+      nationalId,
       department,
       jobTitle,
       joiningDate,
@@ -159,6 +160,7 @@ export const createEmployee = async (req: AuthRequest, res: Response) => {
         lastName,
         email,
         phone,
+        nationalId: nationalId || '',
         department,
         jobTitle,
         joiningDate: joiningDateObj,
@@ -201,7 +203,7 @@ export const updateEmployee = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const {
-      firstName, lastName, phone, department, jobTitle, joiningDate,
+      firstName, lastName, phone, nationalId, department, jobTitle, joiningDate,
       baseSalary, travellingAllowance, otherAllowances,
       localLeaveBalance, sickLeaveBalance, status, role,
     } = req.body;
@@ -216,6 +218,7 @@ export const updateEmployee = async (req: AuthRequest, res: Response) => {
     if (firstName) data.firstName = firstName;
     if (lastName) data.lastName = lastName;
     if (phone !== undefined) data.phone = phone;
+    if (nationalId !== undefined) data.nationalId = nationalId;
     if (department) data.department = department;
     if (jobTitle) data.jobTitle = jobTitle;
     if (joiningDate) data.joiningDate = new Date(joiningDate);

@@ -70,6 +70,8 @@ export const generatePayslip = async (req: AuthRequest, res: Response) => {
         totalDeductions: Number(payroll.totalDeductions),
         grossSalary: Number(payroll.grossSalary),
         netSalary: Number(payroll.netSalary),
+        localLeaveBalance: Number(payroll.employee.localLeaveBalance),
+        sickLeaveBalance: Number(payroll.employee.sickLeaveBalance),
         adjustments: (payroll.adjustments || []).map(a => ({
           label: a.label,
           type: a.type as 'DEDUCTION' | 'ADDITION',
@@ -156,18 +158,17 @@ export const downloadPayslip = async (req: AuthRequest, res: Response) => {
     if (!payslip.pdfPath || !fs.existsSync(payslip.pdfPath)) {
       const pr = payslip.payroll;
       const emp = pr.employee;
-      const [cnCfg, caCfg, cpCfg, ceCfg, clCfg] = await Promise.all([
+      const [cnCfg, caCfg, cpCfg, ceCfg] = await Promise.all([
         prisma.systemConfig.findUnique({ where: { key: 'COMPANY_NAME' } }),
         prisma.systemConfig.findUnique({ where: { key: 'COMPANY_ADDRESS' } }),
         prisma.systemConfig.findUnique({ where: { key: 'COMPANY_PHONE' } }),
         prisma.systemConfig.findUnique({ where: { key: 'COMPANY_EMAIL' } }),
-        prisma.systemConfig.findUnique({ where: { key: 'COMPENSATION_LABEL' } }),
       ]);
       const uploadDir = process.env.VERCEL ? '/tmp' : (process.env.UPLOAD_DIR || 'uploads');
       const regeneratedPath = path.join(uploadDir, 'payslips', path.basename(payslip.pdfPath || `payslip_${emp.employeeId}_${pr.month}_${pr.year}.pdf`));
       await generatePayslipPDF({
         employee: { employeeId: emp.employeeId, firstName: emp.firstName, lastName: emp.lastName, email: emp.email, department: emp.department, jobTitle: emp.jobTitle },
-        payroll: { id: pr.id, month: pr.month, year: pr.year, workingDays: pr.workingDays, presentDays: pr.presentDays, leaveDays: pr.leaveDays, absenceDays: pr.absenceDays, baseSalary: Number(pr.baseSalary), travellingAllowance: Number(pr.travellingAllowance), otherAllowances: Number(pr.otherAllowances), travellingDeduction: Number(pr.travellingDeduction), totalDeductions: Number(pr.totalDeductions), grossSalary: Number(pr.grossSalary), netSalary: Number(pr.netSalary), adjustments: (pr.adjustments || []).map((a: any) => ({ label: a.label, type: a.type, amount: Number(a.amount) })), compensations: (pr.compensations || []).map((c: any) => ({ label: c.label, amount: Number(c.amount) })) },
+        payroll: { id: pr.id, month: pr.month, year: pr.year, workingDays: pr.workingDays, presentDays: pr.presentDays, leaveDays: pr.leaveDays, absenceDays: pr.absenceDays, baseSalary: Number(pr.baseSalary), travellingAllowance: Number(pr.travellingAllowance), otherAllowances: Number(pr.otherAllowances), travellingDeduction: Number(pr.travellingDeduction), totalDeductions: Number(pr.totalDeductions), grossSalary: Number(pr.grossSalary), netSalary: Number(pr.netSalary), localLeaveBalance: Number(emp.localLeaveBalance), sickLeaveBalance: Number(emp.sickLeaveBalance), adjustments: (pr.adjustments || []).map((a: any) => ({ label: a.label, type: a.type, amount: Number(a.amount) })), compensations: (pr.compensations || []).map((c: any) => ({ label: c.label, amount: Number(c.amount) })) },
         company: { name: cnCfg?.value || process.env.COMPANY_NAME || 'Company Name', address: caCfg?.value || process.env.COMPANY_ADDRESS || 'Company Address', phone: cpCfg?.value || process.env.COMPANY_PHONE || 'N/A', email: ceCfg?.value || process.env.COMPANY_EMAIL || 'N/A' },
       }, regeneratedPath);
       await prisma.payslip.update({ where: { payrollId }, data: { pdfPath: regeneratedPath } });

@@ -4,6 +4,13 @@ import prisma from '../config/database';
 import { sendSuccess, sendError } from '../utils/response';
 import { getPayrollCycleDateRange } from '../utils/date';
 
+// ── Statutory contribution calculators ─────────────────────────
+const calcCSG = (baseSalary: number): number =>
+  baseSalary <= 50000 ? baseSalary * 0.015 : baseSalary * 0.03;
+
+const calcNSF = (baseSalary: number): number =>
+  baseSalary >= 21435 ? 21435 * 0.01 : baseSalary * 0.01;
+
 export const getAllPayrolls = async (req: AuthRequest, res: Response) => {
   try {
     const { employeeId, month, year, status } = req.query;
@@ -160,6 +167,8 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
     const { startDate: cycleStart, endDate: cycleEnd } = getPayrollCycleDateRange(monthNum, yearNum, cycleStartDay);
 
     const payrollRecords = [];
+    // Track CSG/NSF per employeeId for adjustment creation after payrolls are saved
+    const empStatutory = new Map<string, { csg: number; nsf: number }>();
 
     for (const employee of employees) {
       // Get attendance for the month
@@ -181,14 +190,20 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
       const dailyTravellingAllowance = Number(employee.travellingAllowance) / workingDays;
       const travellingDeduction = dailyTravellingAllowance * absenceDays;
 
+      // Statutory contributions (CSG & NSF)
+      const baseSal = Number(employee.baseSalary);
+      const csg = calcCSG(baseSal);
+      const nsf = calcNSF(baseSal);
+      empStatutory.set(employee.id, { csg, nsf });
+
       // Sum all compensation entries for this employee
       const compensationTotal = employee.compensations.reduce((s, c) => s + Number(c.amount), 0);
       const grossSalary =
-        Number(employee.baseSalary) +
+        baseSal +
         Number(employee.travellingAllowance) +
         Number(employee.otherAllowances) +
         compensationTotal;
-      const totalDeductions = travellingDeduction;
+      const totalDeductions = travellingDeduction + csg + nsf;
       const netSalary = grossSalary - totalDeductions;
 
       payrollRecords.push({
@@ -241,6 +256,19 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
     );
     if (compensationSnapshots.length > 0) {
       await prisma.payrollCompensation.createMany({ data: compensationSnapshots });
+    }
+
+    // Create CSG and NSF adjustment records for each payroll
+    const statutoryAdjustments = payrolls.flatMap((pr) => {
+      const s = empStatutory.get(pr.employeeId);
+      if (!s) return [];
+      return [
+        { payrollId: pr.id, label: 'CSG', type: 'DEDUCTION' as const, amount: s.csg },
+        { payrollId: pr.id, label: 'NSF', type: 'DEDUCTION' as const, amount: s.nsf },
+      ];
+    });
+    if (statutoryAdjustments.length > 0) {
+      await prisma.payrollAdjustment.createMany({ data: statutoryAdjustments });
     }
 
     // Create audit log
@@ -391,11 +419,11 @@ export const updatePayroll = async (req: AuthRequest, res: Response) => {
       return sendError(res, 'Cannot update locked payroll', 400);
     }
 
-    // Validate and normalise adjustments
+    // Validate and normalise user-submitted adjustments (strip CSG/NSF — always auto-computed)
     type AdjInput = { label: string; type: 'DEDUCTION' | 'ADDITION'; amount: number };
-    const adjList: AdjInput[] = Array.isArray(adjustments)
+    const userAdjList: AdjInput[] = Array.isArray(adjustments)
       ? adjustments
-          .filter((a: any) => a.label && (a.type === 'DEDUCTION' || a.type === 'ADDITION') && !isNaN(parseFloat(a.amount)) && parseFloat(a.amount) > 0)
+          .filter((a: any) => a.label && a.label !== 'CSG' && a.label !== 'NSF' && (a.type === 'DEDUCTION' || a.type === 'ADDITION') && !isNaN(parseFloat(a.amount)) && parseFloat(a.amount) > 0)
           .map((a: any) => ({ label: String(a.label).trim(), type: a.type, amount: parseFloat(a.amount) }))
       : [];
 
@@ -404,6 +432,15 @@ export const updatePayroll = async (req: AuthRequest, res: Response) => {
     const newOtherAllowances = otherAllowances ? parseFloat(otherAllowances) : Number(payroll.otherAllowances);
     // Compensation total is derived from the stored PayrollCompensation snapshot
     const compensationTotal = Number(payroll.compensation);
+
+    // Recalculate statutory contributions from new base salary
+    const csg = calcCSG(newBaseSalary);
+    const nsf = calcNSF(newBaseSalary);
+    const adjList: AdjInput[] = [
+      ...userAdjList,
+      { label: 'CSG', type: 'DEDUCTION', amount: csg },
+      { label: 'NSF', type: 'DEDUCTION', amount: nsf },
+    ];
 
     const travellingDeduction = (newTravellingAllowance / payroll.workingDays) * payroll.absenceDays;
     const grossSalary = newBaseSalary + newTravellingAllowance + newOtherAllowances + compensationTotal;

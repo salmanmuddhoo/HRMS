@@ -218,6 +218,8 @@ const Payroll: React.FC = () => {
     }
   };
 
+  const STATUTORY_LABELS = ['CSG', 'NSF'];
+
   const openEditModal = (payroll: PayrollRecord) => {
     setSelectedPayroll(payroll);
     setEditData({
@@ -226,8 +228,11 @@ const Payroll: React.FC = () => {
       otherAllowances: payroll.otherAllowances.toString(),
       remarks: payroll.remarks || '',
     });
+    // Exclude statutory adjustments — they are auto-recalculated server-side
     setAdjustments(
-      (payroll.adjustments || []).map(a => ({ label: a.label, type: a.type, amount: a.amount.toString() }))
+      (payroll.adjustments || [])
+        .filter(a => !STATUTORY_LABELS.includes(a.label))
+        .map(a => ({ label: a.label, type: a.type, amount: a.amount.toString() }))
     );
     setShowModal(true);
   };
@@ -607,10 +612,24 @@ const Payroll: React.FC = () => {
                   <div className="flex justify-between"><span>Absence Days:</span><span className="text-red-600">{selectedPayroll.absenceDays}</span></div>
                 </div>
 
+                {/* Statutory deductions (read-only — recalculated server-side on save) */}
+                {selectedPayroll.adjustments && selectedPayroll.adjustments.some(a => STATUTORY_LABELS.includes(a.label)) && (
+                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                    <p className="text-xs font-semibold text-blue-700 mb-2">Statutory Deductions (auto-calculated)</p>
+                    {selectedPayroll.adjustments.filter(a => STATUTORY_LABELS.includes(a.label)).map((a, i) => (
+                      <div key={i} className="flex justify-between text-sm text-blue-800">
+                        <span>{a.label}</span>
+                        <span>{formatCurrency(Number(a.amount))}</span>
+                      </div>
+                    ))}
+                    <p className="text-xs text-blue-600 mt-1">Recalculated automatically from Base Salary on each save.</p>
+                  </div>
+                )}
+
                 {/* Adjustments */}
                 <div className="mb-4">
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-semibold text-gray-800">Adjustments</h3>
+                    <h3 className="text-sm font-semibold text-gray-800">Additional Adjustments</h3>
                     <button type="button" onClick={addAdjustmentRow}
                       className="text-sm px-3 py-1 bg-primary-50 text-primary-700 border border-primary-300 rounded-md hover:bg-primary-100">
                       + Add Line
@@ -618,7 +637,7 @@ const Payroll: React.FC = () => {
                   </div>
 
                   {adjustments.length === 0 && (
-                    <p className="text-xs text-gray-400 italic">No adjustments. Click "Add Line" to add deductions (e.g. NPF, NSF) or additions (e.g. bonus).</p>
+                    <p className="text-xs text-gray-400 italic">No additional adjustments. Click "Add Line" to add extra deductions or bonus additions.</p>
                   )}
 
                   <div className="space-y-2">

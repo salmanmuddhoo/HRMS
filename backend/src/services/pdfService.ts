@@ -32,6 +32,8 @@ interface PayslipData {
     totalDeductions: number;
     grossSalary: number;
     netSalary: number;
+    localLeaveBalance?: number;
+    sickLeaveBalance?: number;
     adjustments?: PayrollAdjustmentItem[];
     compensations?: { label: string; amount: number }[];
   };
@@ -123,10 +125,11 @@ export const generatePayslipPDF = async (
         l1: string, v1: string,
         l2: string, v2: string,
         y: number,
+        labelW = 90,
       ) => {
         doc.font('Helvetica').fontSize(9).fillColor(SECONDARY)
-          .text(l1,  L,    y, { width: 90 })
-          .text(v1,  L + 95, y, { width: 195 })
+          .text(l1,  L,          y, { width: labelW })
+          .text(v1,  L + labelW + 5, y, { width: C2_L - L - labelW - 10 })
           .text(l2,  C2_L, y, { width: 85 })
           .text(v2,  C2_V, y, { width: R - C2_V });
       };
@@ -158,50 +161,60 @@ export const generatePayslipPDF = async (
       heading('Attendance Summary');
       y = doc.y;
       infoRow2('Working Days:', String(data.payroll.workingDays),
-               'Present Days:', String(data.payroll.presentDays), y);
+               'Leaves Taken:', String(data.payroll.leaveDays), y);
       y += ROW_H;
-      infoRow2('Leave Days:', String(data.payroll.leaveDays),
-               'Absence Days:', String(data.payroll.absenceDays), y);
+      const annualBal = data.payroll.localLeaveBalance != null ? `${data.payroll.localLeaveBalance} days` : 'N/A';
+      const sickBal   = data.payroll.sickLeaveBalance  != null ? `${data.payroll.sickLeaveBalance} days`  : 'N/A';
+      // Use wider label column (110pt) to accommodate "Ann. Leave Bal.:"
+      infoRow2('Ann. Leave Bal.:', annualBal, 'Sick Leave Bal.:', sickBal, y, 110);
       y += ROW_H + 8;
       doc.y = y;
 
       // ── Earnings ───────────────────────────────────────────────────
+      const additions = (data.payroll.adjustments || []).filter(a => a.type === 'ADDITION' && a.amount > 0);
+
+      // Build earnings lines — skip any item with amount === 0
+      const earningsLines: { label: string; amount: number }[] = [];
+      earningsLines.push({ label: 'Base Salary', amount: data.payroll.baseSalary });
+      if (data.payroll.travellingAllowance > 0)
+        earningsLines.push({ label: 'Travelling Allowance', amount: data.payroll.travellingAllowance });
+      if (data.payroll.otherAllowances > 0)
+        earningsLines.push({ label: 'Other Allowances', amount: data.payroll.otherAllowances });
+      for (const comp of (data.payroll.compensations || []))
+        if (comp.amount > 0) earningsLines.push({ label: comp.label, amount: comp.amount });
+      for (const adj of additions)
+        earningsLines.push({ label: adj.label, amount: adj.amount });
+
       hr();
       heading('Earnings');
       y = doc.y;
-      amtRow('Base Salary:',            `Rs ${data.payroll.baseSalary.toFixed(2)}`,           y);
-      y += ROW_H;
-      amtRow('Travelling Allowance:',   `Rs ${data.payroll.travellingAllowance.toFixed(2)}`,  y);
-      y += ROW_H;
-      amtRow('Other Allowances:',       `Rs ${data.payroll.otherAllowances.toFixed(2)}`,      y);
-      // Government compensation lines (one per year/round)
-      for (const comp of (data.payroll.compensations || [])) {
-        y += ROW_H;
-        amtRow(`${comp.label}:`, `Rs ${comp.amount.toFixed(2)}`, y);
-      }
-      // Additional adjustment ADDITION lines
-      const additions = (data.payroll.adjustments || []).filter(a => a.type === 'ADDITION');
-      for (const adj of additions) {
-        y += ROW_H;
-        amtRow(`${adj.label}:`, `Rs ${adj.amount.toFixed(2)}`, y);
-      }
+      earningsLines.forEach((line, i) => {
+        if (i > 0) y += ROW_H;
+        amtRow(`${line.label}:`, `Rs ${line.amount.toFixed(2)}`, y);
+      });
       y += ROW_H + 4;
-      amtRow('Gross Salary:',           `Rs ${data.payroll.grossSalary.toFixed(2)}`,          y, true);
+      amtRow('Gross Salary:', `Rs ${data.payroll.grossSalary.toFixed(2)}`, y, true);
       y += ROW_H + 8;
       doc.y = y;
 
       // ── Deductions ─────────────────────────────────────────────────
+      const deductions = (data.payroll.adjustments || []).filter(a => a.type === 'DEDUCTION' && a.amount > 0);
+
+      // Build deduction lines — skip any item with amount === 0
+      const deductionLines: { label: string; amount: number }[] = [];
+      if (data.payroll.travellingDeduction > 0)
+        deductionLines.push({ label: 'Travelling Allowance Deduction', amount: data.payroll.travellingDeduction });
+      for (const adj of deductions)
+        deductionLines.push({ label: adj.label, amount: adj.amount });
+
       hr();
       heading('Deductions');
       y = doc.y;
-      amtRow('Travelling Allowance Deduction:', `Rs ${data.payroll.travellingDeduction.toFixed(2)}`, y);
-      // Additional adjustment DEDUCTION lines
-      const deductions = (data.payroll.adjustments || []).filter(a => a.type === 'DEDUCTION');
-      for (const adj of deductions) {
-        y += ROW_H;
-        amtRow(`${adj.label}:`, `Rs ${adj.amount.toFixed(2)}`, y);
-      }
-      y += ROW_H + 4;
+      deductionLines.forEach((line, i) => {
+        if (i > 0) y += ROW_H;
+        amtRow(`${line.label}:`, `Rs ${line.amount.toFixed(2)}`, y);
+      });
+      y += (deductionLines.length > 0 ? ROW_H + 4 : 4);
       amtRow('Total Deductions:', `Rs ${data.payroll.totalDeductions.toFixed(2)}`, y, true);
       y += ROW_H + 8;
       doc.y = y;

@@ -45,9 +45,9 @@ const EmployeeForm: React.FC = () => {
 
   // Compensation entries management (edit mode only)
   const [compensations, setCompensations] = useState<{ id: string; label: string; amount: string }[]>([]);
+  const [removedCompensationIds, setRemovedCompensationIds] = useState<string[]>([]);
   const [newCompLabel, setNewCompLabel] = useState('');
   const [newCompAmount, setNewCompAmount] = useState('');
-  const [savingComp, setSavingComp] = useState(false);
   const [compError, setCompError] = useState('');
 
   useEffect(() => {
@@ -108,50 +108,21 @@ const EmployeeForm: React.FC = () => {
     }
   };
 
-  const handleSaveCompensation = async (idx: number) => {
-    if (!id) return;
+  const handleDeleteCompensation = (idx: number) => {
     const entry = compensations[idx];
-    const amt = parseFloat(entry.amount);
-    if (!entry.label.trim() || isNaN(amt) || amt < 0) { setCompError('Valid label and amount required'); return; }
-    setSavingComp(true);
-    setCompError('');
-    try {
-      const res = await api.upsertEmployeeCompensation(id, entry.label.trim(), amt);
-      if ((res as any).success) {
-        const saved = (res as any).data;
-        setCompensations(prev => prev.map((c, i) => i === idx ? { ...c, id: saved.id } : c));
-      }
-    } catch { setCompError('Failed to save entry'); }
-    setSavingComp(false);
+    if (entry.id) {
+      setRemovedCompensationIds(prev => [...prev, entry.id]);
+    }
+    setCompensations(prev => prev.filter((_, i) => i !== idx));
   };
 
-  const handleDeleteCompensation = async (idx: number) => {
-    if (!id) return;
-    const entry = compensations[idx];
-    if (!entry.id) { setCompensations(prev => prev.filter((_, i) => i !== idx)); return; }
-    if (!window.confirm(`Remove "${entry.label}"?`)) return;
-    try {
-      await api.deleteEmployeeCompensation(id, entry.id);
-      setCompensations(prev => prev.filter((_, i) => i !== idx));
-    } catch { setCompError('Failed to delete entry'); }
-  };
-
-  const handleAddCompensation = async () => {
-    if (!id) return;
+  const handleAddCompensation = () => {
     const amt = parseFloat(newCompAmount);
     if (!newCompLabel.trim() || isNaN(amt) || amt < 0) { setCompError('Valid label and amount required'); return; }
-    setSavingComp(true);
     setCompError('');
-    try {
-      const res = await api.upsertEmployeeCompensation(id, newCompLabel.trim(), amt);
-      if ((res as any).success) {
-        const saved = (res as any).data;
-        setCompensations(prev => [...prev, { id: saved.id, label: saved.label, amount: Number(saved.amount).toString() }]);
-        setNewCompLabel('');
-        setNewCompAmount('');
-      }
-    } catch { setCompError('Failed to add entry'); }
-    setSavingComp(false);
+    setCompensations(prev => [...prev, { id: '', label: newCompLabel.trim(), amount: amt.toString() }]);
+    setNewCompLabel('');
+    setNewCompAmount('');
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -203,6 +174,17 @@ const EmployeeForm: React.FC = () => {
       }
 
       if ((response as any).success) {
+        if (isEdit) {
+          // Sync compensation changes: delete removed entries, upsert current ones
+          await Promise.all(removedCompensationIds.map(cid => api.deleteEmployeeCompensation(id!, cid)));
+          await Promise.all(
+            compensations.map(c => {
+              const amt = parseFloat(c.amount);
+              if (!c.label.trim() || isNaN(amt)) return Promise.resolve();
+              return api.upsertEmployeeCompensation(id!, c.label.trim(), amt);
+            })
+          );
+        }
         navigate('/employees');
       } else {
         setError((response as any).error || 'Failed to save employee');
@@ -269,58 +251,6 @@ const EmployeeForm: React.FC = () => {
         {success && (
           <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-md">
             <p className="text-green-600">{success}</p>
-          </div>
-        )}
-
-        {/* Compensation Entries (edit mode only) */}
-        {isEdit && (
-          <div className="mb-6 bg-white shadow rounded-lg p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-1">Government Compensations</h2>
-            <p className="text-sm text-gray-500 mb-4">Each year's government compensation is a separate entry. Amounts here override the global bulk-set amount for this employee.</p>
-            {compError && <p className="mb-2 text-sm text-red-600">{compError}</p>}
-            {compensations.length > 0 && (
-              <table className="w-full text-sm mb-4">
-                <thead><tr className="bg-gray-50"><th className="px-3 py-2 text-left font-medium text-gray-600">Label</th><th className="px-3 py-2 text-right font-medium text-gray-600">Amount (Rs)</th><th className="px-3 py-2"></th></tr></thead>
-                <tbody className="divide-y divide-gray-100">
-                  {compensations.map((c, i) => (
-                    <tr key={i}>
-                      <td className="px-3 py-2">
-                        <input value={c.label} readOnly className="w-full border-0 bg-transparent text-gray-700 focus:outline-none" />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input type="number" value={c.amount} min="0" step="0.01"
-                          onChange={(e) => setCompensations(prev => prev.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))}
-                          className="w-full text-right border border-gray-300 rounded px-2 py-1" />
-                      </td>
-                      <td className="px-3 py-2 whitespace-nowrap flex gap-1">
-                        <button type="button" onClick={() => handleSaveCompensation(i)} disabled={savingComp}
-                          className="px-2 py-1 text-xs bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50">Save</button>
-                        <button type="button" onClick={() => handleDeleteCompensation(i)}
-                          className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100">Remove</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            <div className="flex gap-2 items-end">
-              <div className="flex-1">
-                <label className="block text-xs text-gray-500 mb-1">Label</label>
-                <input type="text" value={newCompLabel} onChange={(e) => setNewCompLabel(e.target.value)}
-                  placeholder="e.g. Compensation 2025"
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500" />
-              </div>
-              <div className="w-36">
-                <label className="block text-xs text-gray-500 mb-1">Amount (Rs)</label>
-                <input type="number" value={newCompAmount} onChange={(e) => setNewCompAmount(e.target.value)}
-                  min="0" step="0.01" placeholder="0.00"
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500" />
-              </div>
-              <button type="button" onClick={handleAddCompensation} disabled={savingComp || !newCompLabel.trim() || !newCompAmount}
-                className="px-4 py-2 bg-amber-600 text-white text-sm rounded hover:bg-amber-700 disabled:opacity-50">
-                + Add
-              </button>
-            </div>
           </div>
         )}
 
@@ -642,6 +572,56 @@ const EmployeeForm: React.FC = () => {
                   />
                 </div>
               </>
+            )}
+
+            {/* Government Compensations (edit mode only) */}
+            {isEdit && (
+              <div className="md:col-span-2 mt-4">
+                <h2 className="text-lg font-medium text-gray-900 mb-1">Government Compensations</h2>
+                <p className="text-sm text-gray-500 mb-4">Each year's government compensation is a separate entry. Changes are saved when you click "Update Employee".</p>
+                {compError && <p className="mb-2 text-sm text-red-600">{compError}</p>}
+                {compensations.length > 0 && (
+                  <table className="w-full text-sm mb-4">
+                    <thead><tr className="bg-gray-50"><th className="px-3 py-2 text-left font-medium text-gray-600">Label</th><th className="px-3 py-2 text-right font-medium text-gray-600">Amount (Rs)</th><th className="px-3 py-2"></th></tr></thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {compensations.map((c, i) => (
+                        <tr key={i}>
+                          <td className="px-3 py-2">
+                            <input value={c.label} readOnly className="w-full border-0 bg-transparent text-gray-700 focus:outline-none" />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input type="number" value={c.amount} min="0" step="0.01"
+                              onChange={(e) => setCompensations(prev => prev.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))}
+                              className="w-full text-right border border-gray-300 rounded px-2 py-1" />
+                          </td>
+                          <td className="px-3 py-2">
+                            <button type="button" onClick={() => handleDeleteCompensation(i)}
+                              className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100">Remove</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <label className="block text-xs text-gray-500 mb-1">Label</label>
+                    <input type="text" value={newCompLabel} onChange={(e) => setNewCompLabel(e.target.value)}
+                      placeholder="e.g. Compensation 2025"
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500" />
+                  </div>
+                  <div className="w-36">
+                    <label className="block text-xs text-gray-500 mb-1">Amount (Rs)</label>
+                    <input type="number" value={newCompAmount} onChange={(e) => setNewCompAmount(e.target.value)}
+                      min="0" step="0.01" placeholder="0.00"
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500" />
+                  </div>
+                  <button type="button" onClick={handleAddCompensation} disabled={!newCompLabel.trim() || !newCompAmount}
+                    className="px-4 py-2 bg-amber-600 text-white text-sm rounded hover:bg-amber-700 disabled:opacity-50">
+                    + Add
+                  </button>
+                </div>
+              </div>
             )}
 
             {/* Password (only for new employees) */}

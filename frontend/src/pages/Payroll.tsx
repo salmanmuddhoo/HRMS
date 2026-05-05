@@ -43,7 +43,7 @@ interface PayrollRecord {
 }
 
 const Payroll: React.FC = () => {
-  const { canProcessPayroll, canApprovePayroll } = useAuth();
+  const { canProcessPayroll, canApprovePayroll, isAdmin } = useAuth();
   const [payrolls, setPayrolls] = useState<PayrollRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -132,6 +132,30 @@ const Payroll: React.FC = () => {
       }
     } catch (error: any) {
       setError(error.response?.data?.message || 'Failed to lock payroll');
+    }
+  };
+
+  const handleResetPayroll = async () => {
+    const monthLabel = months.find(m => m.value === selectedMonth)?.label;
+    const first = window.confirm(
+      `WARNING: This will permanently delete all payroll records for ${monthLabel} ${selectedYear}, including any approved or locked records.\n\nAll payslips for this period will also be deleted.\n\nDo you want to proceed?`
+    );
+    if (!first) return;
+
+    const second = window.confirm(
+      `FINAL CONFIRMATION\n\nYou are about to reset payroll for ${monthLabel} ${selectedYear}. This action cannot be undone.\n\nAfter reset, payroll will need to be reprocessed from scratch.\n\nAre you absolutely sure?`
+    );
+    if (!second) return;
+
+    try {
+      setError('');
+      const response = await api.resetPayroll(selectedMonth, selectedYear);
+      if ((response as any).success) {
+        setSuccess(`Payroll for ${monthLabel} ${selectedYear} has been reset. You can now reprocess it.`);
+        fetchPayrolls();
+      }
+    } catch (error: any) {
+      setError(error.response?.data?.message || 'Failed to reset payroll');
     }
   };
 
@@ -357,6 +381,14 @@ const Payroll: React.FC = () => {
                 className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
               >
                 Lock All ({approvedCount})
+              </button>
+            )}
+            {isAdmin && payrolls.length > 0 && (
+              <button
+                onClick={handleResetPayroll}
+                className="px-4 py-2 bg-red-700 text-white rounded-md hover:bg-red-800 ml-auto"
+              >
+                Reset Payroll
               </button>
             )}
           </div>

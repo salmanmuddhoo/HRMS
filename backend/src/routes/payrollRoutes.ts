@@ -4,6 +4,7 @@ import {
   getAllPayrolls,
   getPayrollById,
   processMonthlyPayroll,
+  resetMonthlyPayroll,
   approvePayroll,
   lockPayroll,
   updatePayroll,
@@ -28,6 +29,17 @@ router.post(
     body('year').isInt({ min: 2000 }).withMessage('Year must be a valid year'),
   ]),
   processMonthlyPayroll
+);
+
+// Admin-only: reset (delete) all payrolls for a month so they can be reprocessed
+router.post(
+  '/reset',
+  authorize('ADMIN'),
+  validate([
+    body('month').isInt({ min: 1, max: 12 }).withMessage('Month must be between 1 and 12'),
+    body('year').isInt({ min: 2000 }).withMessage('Year must be a valid year'),
+  ]),
+  resetMonthlyPayroll
 );
 
 // Secretary approves, Treasurer cannot

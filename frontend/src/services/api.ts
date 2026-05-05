@@ -200,6 +200,10 @@ class ApiService {
     return this.request({ method: 'DELETE', url: `/payroll/${id}` });
   }
 
+  async resetPayroll(month: number, year: number) {
+    return this.request({ method: 'POST', url: '/payroll/reset', data: { month, year } });
+  }
+
   // Payslips
   async generatePayslip(payrollId: string) {
     return this.request({

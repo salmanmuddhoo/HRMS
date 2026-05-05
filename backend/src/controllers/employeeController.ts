@@ -30,16 +30,10 @@ export const getAllEmployees = async (req: AuthRequest, res: Response) => {
     const employees = await prisma.employee.findMany({
       where,
       include: {
-        user: {
-          select: {
-            email: true,
-            role: true,
-          },
-        },
+        user: { select: { email: true, role: true } },
+        compensations: { orderBy: { createdAt: 'asc' } },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: { createdAt: 'desc' },
     });
 
     return sendSuccess(res, employees);
@@ -56,12 +50,8 @@ export const getEmployeeById = async (req: AuthRequest, res: Response) => {
     const employee = await prisma.employee.findUnique({
       where: { id },
       include: {
-        user: {
-          select: {
-            email: true,
-            role: true,
-          },
-        },
+        user: { select: { email: true, role: true } },
+        compensations: { orderBy: { createdAt: 'asc' } },
       },
     });
 
@@ -102,7 +92,6 @@ export const createEmployee = async (req: AuthRequest, res: Response) => {
       otherAllowances,
       localLeaveBalance,
       sickLeaveBalance,
-      compensation,
       useProration,
       password,
       role,
@@ -176,7 +165,6 @@ export const createEmployee = async (req: AuthRequest, res: Response) => {
         baseSalary: parseFloat(baseSalary),
         travellingAllowance: parseFloat(travellingAllowance || 0),
         otherAllowances: parseFloat(otherAllowances || 0),
-        compensation: compensation ? parseFloat(compensation) : 0,
         localLeaveBalance: finalLocalLeave,
         sickLeaveBalance: finalSickLeave,
         status: 'ACTIVE',
@@ -215,7 +203,7 @@ export const updateEmployee = async (req: AuthRequest, res: Response) => {
     const {
       firstName, lastName, phone, department, jobTitle, joiningDate,
       baseSalary, travellingAllowance, otherAllowances,
-      localLeaveBalance, sickLeaveBalance, compensation, status, role,
+      localLeaveBalance, sickLeaveBalance, status, role,
     } = req.body;
 
     const employee = await prisma.employee.findUnique({
@@ -236,7 +224,6 @@ export const updateEmployee = async (req: AuthRequest, res: Response) => {
     const bs = parseDecimal(baseSalary); if (bs !== undefined && !isNaN(bs)) data.baseSalary = bs;
     const ta = parseDecimal(travellingAllowance); if (ta !== undefined && !isNaN(ta)) data.travellingAllowance = ta;
     const oa = parseDecimal(otherAllowances); if (oa !== undefined && !isNaN(oa)) data.otherAllowances = oa;
-    const comp = parseDecimal(compensation); if (comp !== undefined && !isNaN(comp)) data.compensation = comp;
     const llb = parseDecimal(localLeaveBalance); if (llb !== undefined && !isNaN(llb)) data.localLeaveBalance = llb;
     const slb = parseDecimal(sickLeaveBalance); if (slb !== undefined && !isNaN(slb)) data.sickLeaveBalance = slb;
 
@@ -416,16 +403,29 @@ export const resetEmployeePassword = async (req: AuthRequest, res: Response) => 
 
 export const bulkSetCompensation = async (req: AuthRequest, res: Response) => {
   try {
-    const { amount } = req.body;
+    const { label, amount } = req.body;
+    if (!label || typeof label !== 'string' || !label.trim()) {
+      return sendError(res, 'Compensation label is required', 400);
+    }
     const compensationAmount = parseFloat(amount);
     if (isNaN(compensationAmount) || compensationAmount < 0) {
       return sendError(res, 'Valid compensation amount is required', 400);
     }
 
-    const result = await prisma.employee.updateMany({
+    const activeEmployees = await prisma.employee.findMany({
       where: { status: 'ACTIVE' },
-      data: { compensation: compensationAmount },
+      select: { id: true },
     });
+
+    await Promise.all(
+      activeEmployees.map((emp) =>
+        prisma.employeeCompensation.upsert({
+          where: { employeeId_label: { employeeId: emp.id, label: label.trim() } },
+          update: { amount: compensationAmount },
+          create: { employeeId: emp.id, label: label.trim(), amount: compensationAmount },
+        })
+      )
+    );
 
     await prisma.auditLog.create({
       data: {
@@ -433,13 +433,50 @@ export const bulkSetCompensation = async (req: AuthRequest, res: Response) => {
         action: 'BULK_SET_COMPENSATION',
         entity: 'EMPLOYEE',
         entityId: 'ALL',
-        changes: JSON.stringify({ amount: compensationAmount, affectedCount: result.count }),
+        changes: JSON.stringify({ label: label.trim(), amount: compensationAmount, affectedCount: activeEmployees.length }),
       },
     });
 
-    return sendSuccess(res, { affectedCount: result.count }, `Compensation set to Rs ${compensationAmount} for ${result.count} active employees`);
+    return sendSuccess(res, { affectedCount: activeEmployees.length }, `"${label.trim()}" set to Rs ${compensationAmount} for ${activeEmployees.length} active employees`);
   } catch (error: any) {
     console.error('Bulk set compensation error:', error);
     return sendError(res, 'Failed to set compensation', 500);
+  }
+};
+
+export const upsertEmployeeCompensation = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { label, amount } = req.body;
+    if (!label?.trim()) return sendError(res, 'Label is required', 400);
+    const amt = parseFloat(amount);
+    if (isNaN(amt) || amt < 0) return sendError(res, 'Valid amount is required', 400);
+
+    const employee = await prisma.employee.findUnique({ where: { id } });
+    if (!employee) return sendError(res, 'Employee not found', 404);
+
+    const entry = await prisma.employeeCompensation.upsert({
+      where: { employeeId_label: { employeeId: id, label: label.trim() } },
+      update: { amount: amt },
+      create: { employeeId: id, label: label.trim(), amount: amt },
+    });
+
+    return sendSuccess(res, entry, 'Compensation saved');
+  } catch (error: any) {
+    console.error('Upsert compensation error:', error);
+    return sendError(res, 'Failed to save compensation', 500);
+  }
+};
+
+export const deleteEmployeeCompensation = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, compensationId } = req.params;
+    const entry = await prisma.employeeCompensation.findFirst({ where: { id: compensationId, employeeId: id } });
+    if (!entry) return sendError(res, 'Compensation entry not found', 404);
+    await prisma.employeeCompensation.delete({ where: { id: compensationId } });
+    return sendSuccess(res, null, 'Compensation entry deleted');
+  } catch (error: any) {
+    console.error('Delete compensation error:', error);
+    return sendError(res, 'Failed to delete compensation', 500);
   }
 };

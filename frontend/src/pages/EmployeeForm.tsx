@@ -36,6 +36,7 @@ const EmployeeForm: React.FC = () => {
     baseSalary: '',
     travellingAllowance: '',
     otherAllowances: '',
+    compensation: '',
     localLeaveBalance: '',
     sickLeaveBalance: '',
     password: '',
@@ -80,6 +81,7 @@ const EmployeeForm: React.FC = () => {
           baseSalary: emp.baseSalary.toString(),
           travellingAllowance: emp.travellingAllowance?.toString() || '',
           otherAllowances: emp.otherAllowances?.toString() || '',
+          compensation: emp.compensation?.toString() || '0',
           localLeaveBalance: emp.localLeaveBalance.toString(),
           sickLeaveBalance: emp.sickLeaveBalance.toString(),
           password: '',
@@ -459,6 +461,20 @@ const EmployeeForm: React.FC = () => {
                 step="0.01"
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Government Compensation</label>
+              <input
+                type="number"
+                name="compensation"
+                value={formData.compensation}
+                onChange={handleChange}
+                min="0"
+                step="0.01"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
+              />
+              <p className="mt-1 text-xs text-gray-500">Leave 0 if this employee follows the global compensation setting</p>
             </div>
 
             {/* Leave Info */}

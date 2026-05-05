@@ -31,6 +31,7 @@ interface PayrollRecord {
   baseSalary: number;
   travellingAllowance: number;
   otherAllowances: number;
+  compensation: number;
   travellingDeduction: number;
   totalDeductions: number;
   grossSalary: number;
@@ -56,6 +57,7 @@ const Payroll: React.FC = () => {
     baseSalary: '',
     travellingAllowance: '',
     otherAllowances: '',
+    compensation: '',
     remarks: '',
   });
   const [adjustments, setAdjustments] = useState<PayrollAdjustment[]>([]);
@@ -198,6 +200,7 @@ const Payroll: React.FC = () => {
       baseSalary: payroll.baseSalary.toString(),
       travellingAllowance: payroll.travellingAllowance.toString(),
       otherAllowances: payroll.otherAllowances.toString(),
+      compensation: Number(payroll.compensation).toString(),
       remarks: payroll.remarks || '',
     });
     setAdjustments(
@@ -547,6 +550,12 @@ const Payroll: React.FC = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Other Allowances</label>
                     <input type="number" step="0.01" value={editData.otherAllowances}
                       onChange={(e) => setEditData({ ...editData, otherAllowances: e.target.value })}
+                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Government Compensation</label>
+                    <input type="number" step="0.01" min="0" value={editData.compensation}
+                      onChange={(e) => setEditData({ ...editData, compensation: e.target.value })}
                       className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2" />
                   </div>
                 </div>

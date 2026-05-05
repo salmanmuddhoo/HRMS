@@ -182,11 +182,13 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
       const dailyTravellingAllowance = Number(employee.travellingAllowance) / workingDays;
       const travellingDeduction = dailyTravellingAllowance * absenceDays;
 
-      // Calculate gross and net salary
+      // Calculate gross and net salary (compensation is a government-mandated earnings addition)
+      const employeeCompensation = Number(employee.compensation);
       const grossSalary =
         Number(employee.baseSalary) +
         Number(employee.travellingAllowance) +
-        Number(employee.otherAllowances);
+        Number(employee.otherAllowances) +
+        employeeCompensation;
       const totalDeductions = travellingDeduction;
       const netSalary = grossSalary - totalDeductions;
 
@@ -201,6 +203,7 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
         baseSalary: employee.baseSalary,
         travellingAllowance: employee.travellingAllowance,
         otherAllowances: employee.otherAllowances,
+        compensation: employeeCompensation,
         travellingDeduction,
         totalDeductions,
         grossSalary,
@@ -369,7 +372,7 @@ export const lockPayroll = async (req: AuthRequest, res: Response) => {
 export const updatePayroll = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { baseSalary, travellingAllowance, otherAllowances, remarks, adjustments } = req.body;
+    const { baseSalary, travellingAllowance, otherAllowances, compensation, remarks, adjustments } = req.body;
 
     const payroll = await prisma.payroll.findUnique({ where: { id } });
 
@@ -392,9 +395,10 @@ export const updatePayroll = async (req: AuthRequest, res: Response) => {
     const newBaseSalary = baseSalary ? parseFloat(baseSalary) : Number(payroll.baseSalary);
     const newTravellingAllowance = travellingAllowance ? parseFloat(travellingAllowance) : Number(payroll.travellingAllowance);
     const newOtherAllowances = otherAllowances ? parseFloat(otherAllowances) : Number(payroll.otherAllowances);
+    const newCompensation = compensation !== undefined ? parseFloat(compensation) : Number(payroll.compensation);
 
     const travellingDeduction = (newTravellingAllowance / payroll.workingDays) * payroll.absenceDays;
-    const grossSalary = newBaseSalary + newTravellingAllowance + newOtherAllowances;
+    const grossSalary = newBaseSalary + newTravellingAllowance + newOtherAllowances + newCompensation;
 
     const adjDeductions = adjList.filter(a => a.type === 'DEDUCTION').reduce((s, a) => s + a.amount, 0);
     const adjAdditions  = adjList.filter(a => a.type === 'ADDITION').reduce((s, a) => s + a.amount, 0);
@@ -416,6 +420,7 @@ export const updatePayroll = async (req: AuthRequest, res: Response) => {
           baseSalary: newBaseSalary,
           travellingAllowance: newTravellingAllowance,
           otherAllowances: newOtherAllowances,
+          compensation: newCompensation,
           travellingDeduction,
           totalDeductions,
           grossSalary,

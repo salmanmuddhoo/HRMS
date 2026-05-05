@@ -10,6 +10,8 @@ import {
   deleteEmployee,
   resetEmployeePassword,
   bulkSetCompensation,
+  upsertEmployeeCompensation,
+  deleteEmployeeCompensation,
 } from '../controllers/employeeController';
 import { authenticate, authorize, HR_ROLES } from '../middleware/auth';
 import { validate } from '../middleware/validation';
@@ -56,9 +58,24 @@ router.patch('/:id/deactivate', authorize(...HR_ROLES), deactivateEmployee);
 router.post(
   '/bulk-compensation',
   authorize(...HR_ROLES),
-  validate([body('amount').isNumeric().withMessage('Amount must be a number')]),
+  validate([
+    body('label').notEmpty().withMessage('Label is required'),
+    body('amount').isNumeric().withMessage('Amount must be a number'),
+  ]),
   bulkSetCompensation
 );
+
+// Per-employee compensation management
+router.post(
+  '/:id/compensations',
+  authorize(...HR_ROLES),
+  validate([
+    body('label').notEmpty().withMessage('Label is required'),
+    body('amount').isNumeric().withMessage('Amount must be a number'),
+  ]),
+  upsertEmployeeCompensation
+);
+router.delete('/:id/compensations/:compensationId', authorize(...HR_ROLES), deleteEmployeeCompensation);
 
 // Hard delete — ADMIN only
 router.delete('/:id', authorize('ADMIN'), deleteEmployee);

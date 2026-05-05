@@ -78,7 +78,7 @@ model Employee {
   otherAllowances  Decimal            @default(0)
   localLeaveBalance Decimal           @default(0)
   sickLeaveBalance Decimal            @default(0)
-  compensation     Decimal            @default(0)
+  compensations    EmployeeCompensation[]
   leaves           Leave[]
   attendances      Attendance[]
   payrolls         Payroll[]
@@ -159,6 +159,7 @@ model Payroll {
   updatedAt             DateTime      @updatedAt
   payslip               Payslip?
   adjustments           PayrollAdjustment[]
+  compensations         PayrollCompensation[]
 
   @@unique([employeeId, month, year])
   @@map("payrolls")
@@ -175,6 +176,30 @@ model PayrollAdjustment {
   updatedAt DateTime       @updatedAt
 
   @@map("payroll_adjustments")
+}
+
+model EmployeeCompensation {
+  id         String   @id @default(uuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  label      String
+  amount     Decimal
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([employeeId, label])
+  @@map("employee_compensations")
+}
+
+model PayrollCompensation {
+  id        String  @id @default(uuid())
+  payrollId String
+  payroll   Payroll @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+  label     String
+  amount    Decimal
+  createdAt DateTime @default(now())
+
+  @@map("payroll_compensations")
 }
 
 model Payslip {

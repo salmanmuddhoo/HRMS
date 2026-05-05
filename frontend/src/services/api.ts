@@ -97,8 +97,16 @@ class ApiService {
     return this.request({ method: 'POST', url: `/employees/${id}/reset-password`, data: { newPassword } });
   }
 
-  async bulkSetCompensation(amount: number) {
-    return this.request({ method: 'POST', url: '/employees/bulk-compensation', data: { amount } });
+  async bulkSetCompensation(label: string, amount: number) {
+    return this.request({ method: 'POST', url: '/employees/bulk-compensation', data: { label, amount } });
+  }
+
+  async upsertEmployeeCompensation(employeeId: string, label: string, amount: number) {
+    return this.request({ method: 'POST', url: `/employees/${employeeId}/compensations`, data: { label, amount } });
+  }
+
+  async deleteEmployeeCompensation(employeeId: string, compensationId: string) {
+    return this.request({ method: 'DELETE', url: `/employees/${employeeId}/compensations/${compensationId}` });
   }
 
   async getEmployeeStats() {

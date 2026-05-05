@@ -47,13 +47,10 @@ export const getAllPayrolls = async (req: AuthRequest, res: Response) => {
           },
         },
         payslip: {
-          select: {
-            id: true,
-            generatedAt: true,
-            downloadedAt: true,
-          },
+          select: { id: true, generatedAt: true, downloadedAt: true },
         },
         adjustments: { orderBy: { createdAt: 'asc' } },
+        compensations: { orderBy: { createdAt: 'asc' } },
       },
       orderBy: [{ year: 'desc' }, { month: 'desc' }],
     });
@@ -84,6 +81,7 @@ export const getPayrollById = async (req: AuthRequest, res: Response) => {
           },
         },
         adjustments: { orderBy: { createdAt: 'asc' } },
+        compensations: { orderBy: { createdAt: 'asc' } },
       },
     });
 
@@ -135,9 +133,10 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
       );
     }
 
-    // Get all active employees
+    // Get all active employees with their compensation history
     const employees = await prisma.employee.findMany({
       where: { status: 'ACTIVE' },
+      include: { compensations: { orderBy: { createdAt: 'asc' } } },
     });
 
     if (employees.length === 0) {
@@ -182,13 +181,13 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
       const dailyTravellingAllowance = Number(employee.travellingAllowance) / workingDays;
       const travellingDeduction = dailyTravellingAllowance * absenceDays;
 
-      // Calculate gross and net salary (compensation is a government-mandated earnings addition)
-      const employeeCompensation = Number(employee.compensation);
+      // Sum all compensation entries for this employee
+      const compensationTotal = employee.compensations.reduce((s, c) => s + Number(c.amount), 0);
       const grossSalary =
         Number(employee.baseSalary) +
         Number(employee.travellingAllowance) +
         Number(employee.otherAllowances) +
-        employeeCompensation;
+        compensationTotal;
       const totalDeductions = travellingDeduction;
       const netSalary = grossSalary - totalDeductions;
 
@@ -203,7 +202,7 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
         baseSalary: employee.baseSalary,
         travellingAllowance: employee.travellingAllowance,
         otherAllowances: employee.otherAllowances,
-        compensation: employeeCompensation,
+        compensation: compensationTotal,
         travellingDeduction,
         totalDeductions,
         grossSalary,
@@ -213,16 +212,11 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
     }
 
     // Create payroll records
-    const createdPayrolls = await prisma.payroll.createMany({
-      data: payrollRecords,
-    });
+    await prisma.payroll.createMany({ data: payrollRecords });
 
-    // Fetch created payrolls with employee details
+    // Fetch created payrolls to get their IDs, then snapshot compensation entries
     const payrolls = await prisma.payroll.findMany({
-      where: {
-        month: monthNum,
-        year: yearNum,
-      },
+      where: { month: monthNum, year: yearNum },
       include: {
         employee: {
           select: {
@@ -231,10 +225,23 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
             firstName: true,
             lastName: true,
             department: true,
+            compensations: { orderBy: { createdAt: 'asc' } },
           },
         },
       },
     });
+
+    // Create PayrollCompensation snapshots
+    const compensationSnapshots = payrolls.flatMap((pr) =>
+      pr.employee.compensations.map((c) => ({
+        payrollId: pr.id,
+        label: c.label,
+        amount: Number(c.amount),
+      }))
+    );
+    if (compensationSnapshots.length > 0) {
+      await prisma.payrollCompensation.createMany({ data: compensationSnapshots });
+    }
 
     // Create audit log
     await prisma.auditLog.create({
@@ -372,7 +379,7 @@ export const lockPayroll = async (req: AuthRequest, res: Response) => {
 export const updatePayroll = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { baseSalary, travellingAllowance, otherAllowances, compensation, remarks, adjustments } = req.body;
+    const { baseSalary, travellingAllowance, otherAllowances, remarks, adjustments } = req.body;
 
     const payroll = await prisma.payroll.findUnique({ where: { id } });
 
@@ -395,10 +402,11 @@ export const updatePayroll = async (req: AuthRequest, res: Response) => {
     const newBaseSalary = baseSalary ? parseFloat(baseSalary) : Number(payroll.baseSalary);
     const newTravellingAllowance = travellingAllowance ? parseFloat(travellingAllowance) : Number(payroll.travellingAllowance);
     const newOtherAllowances = otherAllowances ? parseFloat(otherAllowances) : Number(payroll.otherAllowances);
-    const newCompensation = compensation !== undefined ? parseFloat(compensation) : Number(payroll.compensation);
+    // Compensation total is derived from the stored PayrollCompensation snapshot
+    const compensationTotal = Number(payroll.compensation);
 
     const travellingDeduction = (newTravellingAllowance / payroll.workingDays) * payroll.absenceDays;
-    const grossSalary = newBaseSalary + newTravellingAllowance + newOtherAllowances + newCompensation;
+    const grossSalary = newBaseSalary + newTravellingAllowance + newOtherAllowances + compensationTotal;
 
     const adjDeductions = adjList.filter(a => a.type === 'DEDUCTION').reduce((s, a) => s + a.amount, 0);
     const adjAdditions  = adjList.filter(a => a.type === 'ADDITION').reduce((s, a) => s + a.amount, 0);
@@ -420,7 +428,6 @@ export const updatePayroll = async (req: AuthRequest, res: Response) => {
           baseSalary: newBaseSalary,
           travellingAllowance: newTravellingAllowance,
           otherAllowances: newOtherAllowances,
-          compensation: newCompensation,
           travellingDeduction,
           totalDeductions,
           grossSalary,
@@ -430,6 +437,7 @@ export const updatePayroll = async (req: AuthRequest, res: Response) => {
         include: {
           employee: { select: { id: true, employeeId: true, firstName: true, lastName: true, department: true } },
           adjustments: { orderBy: { createdAt: 'asc' } },
+          compensations: { orderBy: { createdAt: 'asc' } },
         },
       });
     });

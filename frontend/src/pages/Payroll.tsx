@@ -39,6 +39,7 @@ interface PayrollRecord {
   status: 'DRAFT' | 'APPROVED' | 'LOCKED';
   remarks?: string;
   adjustments?: { label: string; type: 'DEDUCTION' | 'ADDITION'; amount: number }[];
+  compensations?: { id: string; label: string; amount: number }[];
 }
 
 const Payroll: React.FC = () => {
@@ -57,7 +58,6 @@ const Payroll: React.FC = () => {
     baseSalary: '',
     travellingAllowance: '',
     otherAllowances: '',
-    compensation: '',
     remarks: '',
   });
   const [adjustments, setAdjustments] = useState<PayrollAdjustment[]>([]);
@@ -200,7 +200,6 @@ const Payroll: React.FC = () => {
       baseSalary: payroll.baseSalary.toString(),
       travellingAllowance: payroll.travellingAllowance.toString(),
       otherAllowances: payroll.otherAllowances.toString(),
-      compensation: Number(payroll.compensation).toString(),
       remarks: payroll.remarks || '',
     });
     setAdjustments(
@@ -552,13 +551,21 @@ const Payroll: React.FC = () => {
                       onChange={(e) => setEditData({ ...editData, otherAllowances: e.target.value })}
                       className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2" />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Government Compensation</label>
-                    <input type="number" step="0.01" min="0" value={editData.compensation}
-                      onChange={(e) => setEditData({ ...editData, compensation: e.target.value })}
-                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2" />
-                  </div>
                 </div>
+
+                {/* Compensation lines (read-only snapshot) */}
+                {selectedPayroll.compensations && selectedPayroll.compensations.length > 0 && (
+                  <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                    <p className="text-xs font-semibold text-amber-700 mb-2">Government Compensations (snapshot from processing)</p>
+                    {selectedPayroll.compensations.map((c) => (
+                      <div key={c.id} className="flex justify-between text-sm text-amber-800">
+                        <span>{c.label}</span>
+                        <span>{formatCurrency(Number(c.amount))}</span>
+                      </div>
+                    ))}
+                    <p className="text-xs text-amber-600 mt-1">To change compensation amounts, edit them on the employee's profile and reprocess payroll.</p>
+                  </div>
+                )}
 
                 {/* Attendance summary */}
                 <div className="mb-4 p-3 bg-gray-50 rounded-md text-sm text-gray-600 grid grid-cols-2 gap-x-6 gap-y-1">

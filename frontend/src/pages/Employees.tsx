@@ -48,6 +48,7 @@ const Employees: React.FC = () => {
   const [leaveHistory, setLeaveHistory] = useState<{ emp: Employee; leaves: Leave[] } | null>(null);
   const [leaveHistoryLoading, setLeaveHistoryLoading] = useState(false);
   const [showCompModal, setShowCompModal] = useState(false);
+  const [compLabel, setCompLabel] = useState('');
   const [compAmount, setCompAmount] = useState('');
   const [settingComp, setSettingComp] = useState(false);
 
@@ -105,14 +106,16 @@ const Employees: React.FC = () => {
   };
 
   const handleBulkCompensation = async () => {
+    if (!compLabel.trim()) { setError('Enter a compensation label (e.g. Compensation 2025)'); return; }
     const amount = parseFloat(compAmount);
     if (isNaN(amount) || amount < 0) { setError('Enter a valid amount'); return; }
     setSettingComp(true);
     try {
-      const res = await api.bulkSetCompensation(amount);
+      const res = await api.bulkSetCompensation(compLabel.trim(), amount);
       if ((res as any).success) {
         showMsg('success', (res as any).message || 'Compensation updated for all active employees');
         setShowCompModal(false);
+        setCompLabel('');
         setCompAmount('');
         fetchEmployees();
       }
@@ -144,7 +147,7 @@ const Employees: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">Employees</h1>
           <div className="flex gap-2">
             <button
-              onClick={() => { setShowCompModal(true); setCompAmount(''); }}
+              onClick={() => { setShowCompModal(true); setCompLabel(''); setCompAmount(''); }}
               className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 text-sm font-medium"
             >
               Set Compensation
@@ -386,10 +389,20 @@ const Employees: React.FC = () => {
               <button onClick={() => setShowCompModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
             </div>
             <p className="text-sm text-gray-600 mb-4">
-              This will set the compensation amount for <strong>all active employees</strong>. Individual employees can still have their own compensation adjusted from their profile.
+              This will add or update a compensation entry for <strong>all active employees</strong>. Previous years' compensations are preserved. Individual employees can have their amounts overridden from their profile.
             </p>
+            <div className="mb-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Compensation Label</label>
+              <input
+                type="text"
+                value={compLabel}
+                onChange={(e) => setCompLabel(e.target.value)}
+                placeholder="e.g. Compensation 2025"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Compensation Amount (Rs)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Amount (Rs)</label>
               <input
                 type="number"
                 value={compAmount}
@@ -409,7 +422,7 @@ const Employees: React.FC = () => {
               </button>
               <button
                 onClick={handleBulkCompensation}
-                disabled={settingComp || !compAmount}
+                disabled={settingComp || !compLabel.trim() || !compAmount}
                 className="px-4 py-2 bg-amber-600 text-white rounded-md text-sm hover:bg-amber-700 disabled:opacity-50"
               >
                 {settingComp ? 'Applying...' : 'Apply to All'}

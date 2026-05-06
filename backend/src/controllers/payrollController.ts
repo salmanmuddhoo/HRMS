@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/auth';
 import prisma from '../config/database';
 import { sendSuccess, sendError } from '../utils/response';
 import { getPayrollCycleDateRange } from '../utils/date';
+import emailService from '../services/emailService';
 
 // ── Statutory contribution calculators ─────────────────────────
 const calcCSG = (baseSalary: number): number =>
@@ -404,6 +405,83 @@ export const lockPayroll = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const rejectPayroll = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { rejectionReason } = req.body;
+
+    if (!rejectionReason || !rejectionReason.trim()) {
+      return sendError(res, 'Rejection reason is required', 400);
+    }
+
+    const payroll = await prisma.payroll.findUnique({
+      where: { id },
+      include: {
+        employee: { select: { id: true, employeeId: true, firstName: true, lastName: true } },
+      },
+    });
+
+    if (!payroll) return sendError(res, 'Payroll not found', 404);
+    if (payroll.status === 'LOCKED') return sendError(res, 'Cannot reject a locked payroll', 400);
+
+    const rejecter = await prisma.user.findUnique({
+      where: { id: req.user!.userId },
+      select: { email: true, employee: { select: { firstName: true, lastName: true } } },
+    });
+    const secretaryName = rejecter?.employee
+      ? `${rejecter.employee.firstName} ${rejecter.employee.lastName}`
+      : rejecter?.email || 'Secretary';
+
+    const updatedPayroll = await prisma.payroll.update({
+      where: { id },
+      data: {
+        status: 'REJECTED',
+        rejectedBy: req.user!.userId,
+        rejectedAt: new Date(),
+        rejectionReason: rejectionReason.trim(),
+        // Clear previous approval if it was re-reviewed
+        approvedBy: null,
+        approvedAt: null,
+      },
+      include: {
+        employee: { select: { id: true, employeeId: true, firstName: true, lastName: true, department: true } },
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.userId,
+        action: 'REJECT_PAYROLL',
+        entity: 'PAYROLL',
+        entityId: id,
+        changes: JSON.stringify({ rejectionReason: rejectionReason.trim() }),
+      },
+    });
+
+    // Notify Treasurer(s) and Admin(s) by email
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const monthName = months[payroll.month - 1];
+    const treasurers = await prisma.user.findMany({
+      where: { role: { in: ['TREASURER', 'ADMIN'] }, emailNotifications: true },
+      select: { email: true },
+    });
+    const employeeName = `${payroll.employee.firstName} ${payroll.employee.lastName}`;
+    emailService.sendPayrollRejectionNotification({
+      to: treasurers.map(t => t.email),
+      employeeName,
+      month: monthName,
+      year: payroll.year,
+      rejectionReason: rejectionReason.trim(),
+      secretaryName,
+    }).catch(err => console.error('[PayrollReject] Email error:', err));
+
+    return sendSuccess(res, updatedPayroll, 'Payroll rejected successfully');
+  } catch (error: any) {
+    console.error('Reject payroll error:', error);
+    return sendError(res, 'Failed to reject payroll', 500);
+  }
+};
+
 export const updatePayroll = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -470,6 +548,13 @@ export const updatePayroll = async (req: AuthRequest, res: Response) => {
           grossSalary,
           netSalary,
           remarks,
+          // Reset REJECTED back to DRAFT so secretary can re-review after corrections
+          ...(payroll.status === 'REJECTED' ? {
+            status: 'DRAFT',
+            rejectionReason: null,
+            rejectedBy: null,
+            rejectedAt: null,
+          } : {}),
         },
         include: {
           employee: { select: { id: true, employeeId: true, firstName: true, lastName: true, department: true } },

@@ -217,23 +217,24 @@ const EmployeeForm: React.FC = () => {
       }
 
       if ((response as any).success) {
-        if (isEdit) {
-          // Sync compensation changes: delete removed entries, upsert current ones
-          await Promise.all(removedCompensationIds.map(cid => api.deleteEmployeeCompensation(id!, cid)));
+        const empId = isEdit ? id! : (response as any).data?.id;
+        if (empId) {
+          if (isEdit) {
+            await Promise.all(removedCompensationIds.map(cid => api.deleteEmployeeCompensation(empId, cid)));
+            await Promise.all(removedTransferIds.map(tid => api.deleteEmployeeTransfer(empId, tid)));
+          }
           await Promise.all(
             compensations.map(c => {
               const amt = parseFloat(c.amount);
               if (!c.label.trim() || isNaN(amt)) return Promise.resolve();
-              return api.upsertEmployeeCompensation(id!, c.label.trim(), amt);
+              return api.upsertEmployeeCompensation(empId, c.label.trim(), amt);
             })
           );
-          // Sync transfer changes: delete removed entries, upsert current ones
-          await Promise.all(removedTransferIds.map(tid => api.deleteEmployeeTransfer(id!, tid)));
           await Promise.all(
             transfers.map(t => {
               const amt = parseFloat(t.amount);
               if (!t.accountType || isNaN(amt)) return Promise.resolve();
-              return api.upsertEmployeeTransfer(id!, t.accountType, amt);
+              return api.upsertEmployeeTransfer(empId, t.accountType, amt);
             })
           );
         }
@@ -639,107 +640,103 @@ const EmployeeForm: React.FC = () => {
               </>
             )}
 
-            {/* Compensations (edit mode only) */}
-            {isEdit && (
-              <div className="md:col-span-2 mt-4">
-                <h2 className="text-lg font-medium text-gray-900 mb-1">Compensations</h2>
-                <p className="text-sm text-gray-500 mb-4">Each year's compensation is a separate entry. Changes are saved when you click "Update Employee".</p>
-                {compError && <p className="mb-2 text-sm text-red-600">{compError}</p>}
-                {compensations.length > 0 && (
-                  <table className="w-full text-sm mb-4">
-                    <thead><tr className="bg-gray-50"><th className="px-3 py-2 text-left font-medium text-gray-600">Label</th><th className="px-3 py-2 text-right font-medium text-gray-600">Amount (Rs)</th><th className="px-3 py-2"></th></tr></thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {compensations.map((c, i) => (
-                        <tr key={i}>
-                          <td className="px-3 py-2">
-                            <input value={c.label} readOnly className="w-full border-0 bg-transparent text-gray-700 focus:outline-none" />
-                          </td>
-                          <td className="px-3 py-2">
-                            <input type="number" value={c.amount} min="0" step="0.01"
-                              onChange={(e) => setCompensations(prev => prev.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))}
-                              className="w-full text-right border border-gray-300 rounded px-2 py-1" />
-                          </td>
-                          <td className="px-3 py-2">
-                            <button type="button" onClick={() => handleDeleteCompensation(i)}
-                              className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100">Remove</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-                <div className="flex gap-2 items-end">
-                  <div className="flex-1">
-                    <label className="block text-xs text-gray-500 mb-1">Label</label>
-                    <input type="text" value={newCompLabel} onChange={(e) => setNewCompLabel(e.target.value)}
-                      placeholder="e.g. Compensation 2025"
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500" />
-                  </div>
-                  <div className="w-36">
-                    <label className="block text-xs text-gray-500 mb-1">Amount (Rs)</label>
-                    <input type="number" value={newCompAmount} onChange={(e) => setNewCompAmount(e.target.value)}
-                      min="0" step="0.01" placeholder="0.00"
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500" />
-                  </div>
-                  <button type="button" onClick={handleAddCompensation} disabled={!newCompLabel.trim() || !newCompAmount}
-                    className="px-4 py-2 bg-amber-600 text-white text-sm rounded hover:bg-amber-700 disabled:opacity-50">
-                    + Add
-                  </button>
+            {/* Compensations */}
+            <div className="md:col-span-2 mt-4">
+              <h2 className="text-lg font-medium text-gray-900 mb-1">Compensations</h2>
+              <p className="text-sm text-gray-500 mb-4">Each year's compensation is a separate entry. Changes are saved when you submit.</p>
+              {compError && <p className="mb-2 text-sm text-red-600">{compError}</p>}
+              {compensations.length > 0 && (
+                <table className="w-full text-sm mb-4">
+                  <thead><tr className="bg-gray-50"><th className="px-3 py-2 text-left font-medium text-gray-600">Label</th><th className="px-3 py-2 text-right font-medium text-gray-600">Amount (Rs)</th><th className="px-3 py-2"></th></tr></thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {compensations.map((c, i) => (
+                      <tr key={i}>
+                        <td className="px-3 py-2">
+                          <input value={c.label} readOnly className="w-full border-0 bg-transparent text-gray-700 focus:outline-none" />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input type="number" value={c.amount} min="0" step="0.01"
+                            onChange={(e) => setCompensations(prev => prev.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))}
+                            className="w-full text-right border border-gray-300 rounded px-2 py-1" />
+                        </td>
+                        <td className="px-3 py-2">
+                          <button type="button" onClick={() => handleDeleteCompensation(i)}
+                            className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100">Remove</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <label className="block text-xs text-gray-500 mb-1">Label</label>
+                  <input type="text" value={newCompLabel} onChange={(e) => setNewCompLabel(e.target.value)}
+                    placeholder="e.g. Compensation 2025"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500" />
                 </div>
+                <div className="w-36">
+                  <label className="block text-xs text-gray-500 mb-1">Amount (Rs)</label>
+                  <input type="number" value={newCompAmount} onChange={(e) => setNewCompAmount(e.target.value)}
+                    min="0" step="0.01" placeholder="0.00"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500" />
+                </div>
+                <button type="button" onClick={handleAddCompensation} disabled={!newCompLabel.trim() || !newCompAmount}
+                  className="px-4 py-2 bg-amber-600 text-white text-sm rounded hover:bg-amber-700 disabled:opacity-50">
+                  + Add
+                </button>
               </div>
-            )}
+            </div>
 
-            {/* Transfers (edit mode only) */}
-            {isEdit && (
-              <div className="md:col-span-2 mt-4">
-                <h2 className="text-lg font-medium text-gray-900 mb-1">Transfers</h2>
-                <p className="text-sm text-gray-500 mb-4">Monthly salary transfer elections. Changes are saved when you click "Update Employee".</p>
-                {transferError && <p className="mb-2 text-sm text-red-600">{transferError}</p>}
-                {transfers.length > 0 && (
-                  <table className="w-full text-sm mb-4">
-                    <thead><tr className="bg-gray-50"><th className="px-3 py-2 text-left font-medium text-gray-600">Account Type</th><th className="px-3 py-2 text-right font-medium text-gray-600">Amount (Rs)</th><th className="px-3 py-2"></th></tr></thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {transfers.map((t, i) => (
-                        <tr key={i}>
-                          <td className="px-3 py-2 text-gray-700">{t.label}</td>
-                          <td className="px-3 py-2">
-                            <input type="number" value={t.amount} min="0.01" step="0.01"
-                              onChange={(e) => setTransfers(prev => prev.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))}
-                              className="w-full text-right border border-gray-300 rounded px-2 py-1" />
-                          </td>
-                          <td className="px-3 py-2">
-                            <button type="button" onClick={() => handleDeleteTransfer(i)}
-                              className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100">Remove</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-                <div className="flex gap-2 items-end">
-                  <div className="flex-1">
-                    <label className="block text-xs text-gray-500 mb-1">Account Type</label>
-                    <select value={newTransferType} onChange={(e) => setNewTransferType(e.target.value)}
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500">
-                      <option value="">Select account type...</option>
-                      {TRANSFER_OPTIONS.filter(o => !transfers.some(t => t.accountType === o.value)).map(o => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="w-36">
-                    <label className="block text-xs text-gray-500 mb-1">Amount (Rs)</label>
-                    <input type="number" value={newTransferAmount} onChange={(e) => setNewTransferAmount(e.target.value)}
-                      min="0.01" step="0.01" placeholder="0.00"
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500" />
-                  </div>
-                  <button type="button" onClick={handleAddTransfer} disabled={!newTransferType || !newTransferAmount}
-                    className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50">
-                    + Add
-                  </button>
+            {/* Transfers */}
+            <div className="md:col-span-2 mt-4">
+              <h2 className="text-lg font-medium text-gray-900 mb-1">Transfers</h2>
+              <p className="text-sm text-gray-500 mb-4">Monthly salary transfer elections. Changes are saved when you submit.</p>
+              {transferError && <p className="mb-2 text-sm text-red-600">{transferError}</p>}
+              {transfers.length > 0 && (
+                <table className="w-full text-sm mb-4">
+                  <thead><tr className="bg-gray-50"><th className="px-3 py-2 text-left font-medium text-gray-600">Account Type</th><th className="px-3 py-2 text-right font-medium text-gray-600">Amount (Rs)</th><th className="px-3 py-2"></th></tr></thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {transfers.map((t, i) => (
+                      <tr key={i}>
+                        <td className="px-3 py-2 text-gray-700">{t.label}</td>
+                        <td className="px-3 py-2">
+                          <input type="number" value={t.amount} min="0.01" step="0.01"
+                            onChange={(e) => setTransfers(prev => prev.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))}
+                            className="w-full text-right border border-gray-300 rounded px-2 py-1" />
+                        </td>
+                        <td className="px-3 py-2">
+                          <button type="button" onClick={() => handleDeleteTransfer(i)}
+                            className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100">Remove</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <label className="block text-xs text-gray-500 mb-1">Account Type</label>
+                  <select value={newTransferType} onChange={(e) => setNewTransferType(e.target.value)}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500">
+                    <option value="">Select account type...</option>
+                    {TRANSFER_OPTIONS.filter(o => !transfers.some(t => t.accountType === o.value)).map(o => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
                 </div>
+                <div className="w-36">
+                  <label className="block text-xs text-gray-500 mb-1">Amount (Rs)</label>
+                  <input type="number" value={newTransferAmount} onChange={(e) => setNewTransferAmount(e.target.value)}
+                    min="0.01" step="0.01" placeholder="0.00"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500" />
+                </div>
+                <button type="button" onClick={handleAddTransfer} disabled={!newTransferType || !newTransferAmount}
+                  className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50">
+                  + Add
+                </button>
               </div>
-            )}
+            </div>
 
             {/* Password (only for new employees) */}
             {!isEdit && (

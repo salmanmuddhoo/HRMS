@@ -38,7 +38,7 @@ interface PayrollRecord {
 }
 
 const Payslips: React.FC = () => {
-  const { user, isEmployer } = useAuth();
+  const { user, canProcessPayroll } = useAuth();
   const [payrolls, setPayrolls] = useState<PayrollRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -52,10 +52,14 @@ const Payslips: React.FC = () => {
       setLoading(true);
       const response = await api.getPayrolls({ year: selectedYear });
       if ((response as any).success) {
-        // Filter to only show approved/locked payrolls for payslip generation
-        const data = ((response as any).data || []).filter(
+        let data: PayrollRecord[] = ((response as any).data || []).filter(
           (p: PayrollRecord) => p.status === 'APPROVED' || p.status === 'LOCKED'
         );
+        if (!canProcessPayroll) {
+          // Non-admin/non-treasurer: only own records that already have a generated payslip
+          const myEmployeeId = (user as any)?.employee?.id;
+          data = data.filter(p => p.payslip && (!myEmployeeId || p.employeeId === myEmployeeId));
+        }
         setPayrolls(data);
       }
     } catch (error) {
@@ -63,7 +67,7 @@ const Payslips: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedYear]);
+  }, [selectedYear, canProcessPayroll, user]);
 
   useEffect(() => {
     fetchPayrolls();
@@ -199,7 +203,7 @@ const Payslips: React.FC = () => {
               ))}
             </select>
           </div>
-          {isEmployer && payrolls.some(p => !p.payslip) && (
+          {canProcessPayroll && payrolls.some(p => !p.payslip) && (
             <button
               onClick={handleGenerateAll}
               className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
@@ -216,8 +220,8 @@ const Payslips: React.FC = () => {
           </div>
         ) : payrolls.length === 0 ? (
           <div className="bg-white shadow rounded-lg p-6 text-center text-gray-500">
-            <p>No approved payroll records for {selectedYear}.</p>
-            <p className="mt-2 text-sm">Payslips can only be generated for approved or locked payrolls.</p>
+            <p>No {canProcessPayroll ? 'approved payroll records' : 'generated payslips'} for {selectedYear}.</p>
+            {canProcessPayroll && <p className="mt-2 text-sm">Payslips can only be generated for approved or locked payrolls.</p>}
           </div>
         ) : (
           <div className="space-y-6">
@@ -235,8 +239,8 @@ const Payslips: React.FC = () => {
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
                         <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Salary</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Payslip</th>
+                        {canProcessPayroll && <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>}
+                        {canProcessPayroll && <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Payslip</th>}
                         <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
                       </tr>
                     </thead>
@@ -259,28 +263,32 @@ const Payslips: React.FC = () => {
                               Gross: {formatCurrency(payroll.grossSalary)}
                             </div>
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-center">
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                              payroll.status === 'LOCKED' ? 'bg-gray-100 text-gray-800' : 'bg-green-100 text-green-800'
-                            }`}>
-                              {payroll.status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-center">
-                            {payroll.payslip ? (
-                              <div>
-                                <span className="text-xs text-green-600 font-medium">Generated</span>
-                                <div className="text-xs text-gray-400">
-                                  {formatDate(payroll.payslip.generatedAt)}
+                          {canProcessPayroll && (
+                            <td className="px-4 py-3 whitespace-nowrap text-center">
+                              <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                payroll.status === 'LOCKED' ? 'bg-gray-100 text-gray-800' : 'bg-green-100 text-green-800'
+                              }`}>
+                                {payroll.status}
+                              </span>
+                            </td>
+                          )}
+                          {canProcessPayroll && (
+                            <td className="px-4 py-3 whitespace-nowrap text-center">
+                              {payroll.payslip ? (
+                                <div>
+                                  <span className="text-xs text-green-600 font-medium">Generated</span>
+                                  <div className="text-xs text-gray-400">
+                                    {formatDate(payroll.payslip.generatedAt)}
+                                  </div>
                                 </div>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-yellow-600">Not generated</span>
-                            )}
-                          </td>
+                              ) : (
+                                <span className="text-xs text-yellow-600">Not generated</span>
+                              )}
+                            </td>
+                          )}
                           <td className="px-4 py-3 whitespace-nowrap text-center">
                             <div className="flex items-center justify-center gap-2">
-                              {!payroll.payslip && isEmployer && (
+                              {!payroll.payslip && canProcessPayroll && (
                                 <button
                                   onClick={() => handleGeneratePayslip(payroll.id)}
                                   disabled={generating === payroll.id}
@@ -312,12 +320,12 @@ const Payslips: React.FC = () => {
           </div>
         )}
 
-        {/* Employee Self-Service Info */}
-        {!isEmployer && user?.employee && (
+        {/* Info for non-admin/treasurer users */}
+        {!canProcessPayroll && (
           <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
             <h3 className="text-sm font-medium text-blue-800">Your Payslips</h3>
             <p className="mt-1 text-sm text-blue-600">
-              You can view and download your payslips from this page. Payslips are available once your payroll has been approved and generated.
+              This page shows your generated payslips. Download them once they have been generated by the payroll team.
             </p>
           </div>
         )}

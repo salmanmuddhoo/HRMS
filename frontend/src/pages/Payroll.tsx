@@ -748,9 +748,6 @@ const Payroll: React.FC = () => {
                 {(viewPayroll.adjustments || []).filter(a => a.type === 'DEDUCTION').map((a, i) => (
                   <div key={i} className="flex justify-between px-2 text-red-600"><span>{a.label}</span><span>-{formatCurrency(Number(a.amount))}</span></div>
                 ))}
-                <div className="flex justify-between px-2 font-semibold border-t pt-1 text-red-700">
-                  <span>Total Deductions</span><span>-{formatCurrency(Number(viewPayroll.totalDeductions))}</span>
-                </div>
               </div>
 
               {/* Transfers */}
@@ -762,6 +759,12 @@ const Payroll: React.FC = () => {
                   ))}
                 </div>
               )}
+
+              <div className="mb-2 space-y-2 text-sm">
+                <div className="flex justify-between px-2 font-semibold border-t pt-1 text-red-700">
+                  <span>Total Deductions</span><span>-{formatCurrency(Number(viewPayroll.totalDeductions))}</span>
+                </div>
+              </div>
 
               {/* Net */}
               <div className="bg-gray-900 text-white rounded-md p-3 flex justify-between items-center mb-4">

@@ -51,6 +51,19 @@ const EmployeeForm: React.FC = () => {
   const [newCompAmount, setNewCompAmount] = useState('');
   const [compError, setCompError] = useState('');
 
+  // Transfer entries management (edit mode only)
+  const TRANSFER_OPTIONS = [
+    { value: 'SHARES', label: 'Shares A/C' },
+    { value: 'MSA', label: 'MSA' },
+    { value: 'HSA', label: 'HSA' },
+    { value: 'SHARIAH', label: 'Shariah Compliant Financing' },
+  ];
+  const [transfers, setTransfers] = useState<{ id: string; accountType: string; label: string; amount: string }[]>([]);
+  const [removedTransferIds, setRemovedTransferIds] = useState<string[]>([]);
+  const [newTransferType, setNewTransferType] = useState('');
+  const [newTransferAmount, setNewTransferAmount] = useState('');
+  const [transferError, setTransferError] = useState('');
+
   useEffect(() => {
     fetchLeaveDefaults();
     if (isEdit) {
@@ -103,6 +116,14 @@ const EmployeeForm: React.FC = () => {
             amount: Number(c.amount).toString(),
           }))
         );
+        setTransfers(
+          (emp.transfers || []).map((t: any) => ({
+            id: t.id,
+            accountType: t.accountType,
+            label: t.label,
+            amount: Number(t.amount).toString(),
+          }))
+        );
       }
     } catch (error) {
       console.error('Failed to fetch employee:', error);
@@ -125,6 +146,26 @@ const EmployeeForm: React.FC = () => {
     setCompensations(prev => [...prev, { id: '', label: newCompLabel.trim(), amount: amt.toString() }]);
     setNewCompLabel('');
     setNewCompAmount('');
+  };
+
+  const handleDeleteTransfer = (idx: number) => {
+    const entry = transfers[idx];
+    if (entry.id) {
+      setRemovedTransferIds(prev => [...prev, entry.id]);
+    }
+    setTransfers(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleAddTransfer = () => {
+    const amt = parseFloat(newTransferAmount);
+    if (!newTransferType) { setTransferError('Please select an account type'); return; }
+    if (isNaN(amt) || amt <= 0) { setTransferError('Amount must be greater than 0'); return; }
+    if (transfers.some(t => t.accountType === newTransferType)) { setTransferError('This account type is already added'); return; }
+    const opt = TRANSFER_OPTIONS.find(o => o.value === newTransferType);
+    setTransferError('');
+    setTransfers(prev => [...prev, { id: '', accountType: newTransferType, label: opt?.label || newTransferType, amount: amt.toString() }]);
+    setNewTransferType('');
+    setNewTransferAmount('');
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -184,6 +225,15 @@ const EmployeeForm: React.FC = () => {
               const amt = parseFloat(c.amount);
               if (!c.label.trim() || isNaN(amt)) return Promise.resolve();
               return api.upsertEmployeeCompensation(id!, c.label.trim(), amt);
+            })
+          );
+          // Sync transfer changes: delete removed entries, upsert current ones
+          await Promise.all(removedTransferIds.map(tid => api.deleteEmployeeTransfer(id!, tid)));
+          await Promise.all(
+            transfers.map(t => {
+              const amt = parseFloat(t.amount);
+              if (!t.accountType || isNaN(amt)) return Promise.resolve();
+              return api.upsertEmployeeTransfer(id!, t.accountType, amt);
             })
           );
         }
@@ -633,6 +683,58 @@ const EmployeeForm: React.FC = () => {
                   </div>
                   <button type="button" onClick={handleAddCompensation} disabled={!newCompLabel.trim() || !newCompAmount}
                     className="px-4 py-2 bg-amber-600 text-white text-sm rounded hover:bg-amber-700 disabled:opacity-50">
+                    + Add
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Transfers (edit mode only) */}
+            {isEdit && (
+              <div className="md:col-span-2 mt-4">
+                <h2 className="text-lg font-medium text-gray-900 mb-1">Transfers</h2>
+                <p className="text-sm text-gray-500 mb-4">Monthly salary transfer elections. Changes are saved when you click "Update Employee".</p>
+                {transferError && <p className="mb-2 text-sm text-red-600">{transferError}</p>}
+                {transfers.length > 0 && (
+                  <table className="w-full text-sm mb-4">
+                    <thead><tr className="bg-gray-50"><th className="px-3 py-2 text-left font-medium text-gray-600">Account Type</th><th className="px-3 py-2 text-right font-medium text-gray-600">Amount (Rs)</th><th className="px-3 py-2"></th></tr></thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {transfers.map((t, i) => (
+                        <tr key={i}>
+                          <td className="px-3 py-2 text-gray-700">{t.label}</td>
+                          <td className="px-3 py-2">
+                            <input type="number" value={t.amount} min="0.01" step="0.01"
+                              onChange={(e) => setTransfers(prev => prev.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))}
+                              className="w-full text-right border border-gray-300 rounded px-2 py-1" />
+                          </td>
+                          <td className="px-3 py-2">
+                            <button type="button" onClick={() => handleDeleteTransfer(i)}
+                              className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100">Remove</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <label className="block text-xs text-gray-500 mb-1">Account Type</label>
+                    <select value={newTransferType} onChange={(e) => setNewTransferType(e.target.value)}
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500">
+                      <option value="">Select account type...</option>
+                      {TRANSFER_OPTIONS.filter(o => !transfers.some(t => t.accountType === o.value)).map(o => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="w-36">
+                    <label className="block text-xs text-gray-500 mb-1">Amount (Rs)</label>
+                    <input type="number" value={newTransferAmount} onChange={(e) => setNewTransferAmount(e.target.value)}
+                      min="0.01" step="0.01" placeholder="0.00"
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500" />
+                  </div>
+                  <button type="button" onClick={handleAddTransfer} disabled={!newTransferType || !newTransferAmount}
+                    className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50">
                     + Add
                   </button>
                 </div>

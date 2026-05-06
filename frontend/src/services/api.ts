@@ -109,6 +109,18 @@ class ApiService {
     return this.request({ method: 'DELETE', url: `/employees/${employeeId}/compensations/${compensationId}` });
   }
 
+  async getEmployeeTransfers(employeeId: string) {
+    return this.request({ method: 'GET', url: `/employees/${employeeId}/transfers` });
+  }
+
+  async upsertEmployeeTransfer(employeeId: string, accountType: string, amount: number) {
+    return this.request({ method: 'POST', url: `/employees/${employeeId}/transfers`, data: { accountType, amount } });
+  }
+
+  async deleteEmployeeTransfer(employeeId: string, transferId: string) {
+    return this.request({ method: 'DELETE', url: `/employees/${employeeId}/transfers/${transferId}` });
+  }
+
   async getEmployeeStats() {
     return this.request({ method: 'GET', url: '/employees/stats' });
   }

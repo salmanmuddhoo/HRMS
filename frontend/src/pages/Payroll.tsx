@@ -42,6 +42,7 @@ interface PayrollRecord {
   rejectedBy?: string;
   adjustments?: { label: string; type: 'DEDUCTION' | 'ADDITION'; amount: number }[];
   compensations?: { id: string; label: string; amount: number }[];
+  transfers?: { id: string; accountType: string; label: string; amount: number }[];
 }
 
 const Payroll: React.FC = () => {
@@ -752,6 +753,16 @@ const Payroll: React.FC = () => {
                 </div>
               </div>
 
+              {/* Transfers */}
+              {(viewPayroll.transfers || []).length > 0 && (
+                <div className="mb-4 space-y-2 text-sm">
+                  <h3 className="font-semibold text-gray-700 mb-1">Transfers</h3>
+                  {(viewPayroll.transfers || []).map((t, i) => (
+                    <div key={i} className="flex justify-between px-2 text-blue-700"><span>{t.label}</span><span>{formatCurrency(Number(t.amount))}</span></div>
+                  ))}
+                </div>
+              )}
+
               {/* Net */}
               <div className="bg-gray-900 text-white rounded-md p-3 flex justify-between items-center mb-4">
                 <span className="font-semibold">Net Salary</span>
@@ -871,6 +882,20 @@ const Payroll: React.FC = () => {
                   </div>
                 )}
 
+                {/* Transfer lines (read-only snapshot) */}
+                {selectedPayroll.transfers && selectedPayroll.transfers.length > 0 && (
+                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                    <p className="text-xs font-semibold text-blue-700 mb-2">Transfers (snapshot from processing)</p>
+                    {selectedPayroll.transfers.map((t) => (
+                      <div key={t.id} className="flex justify-between text-sm text-blue-800">
+                        <span>{t.label}</span>
+                        <span>{formatCurrency(Number(t.amount))}</span>
+                      </div>
+                    ))}
+                    <p className="text-xs text-blue-600 mt-1">To change transfer amounts, edit them on the employee's profile and reprocess payroll.</p>
+                  </div>
+                )}
+
                 {/* Attendance summary */}
                 <div className="mb-4 p-3 bg-gray-50 rounded-md text-sm text-gray-600 grid grid-cols-2 gap-x-6 gap-y-1">
                   <div className="flex justify-between"><span>Working Days:</span><span>{selectedPayroll.workingDays}</span></div>
@@ -982,7 +1007,8 @@ const Payroll: React.FC = () => {
                   const liveNSF = liveBase >= 21435 ? 21435 * 0.01 : liveBase * 0.01;
                   const liveTravelDed = Number(selectedPayroll.travellingDeduction || 0);
                   const liveUserDeds = adjustments.filter(a => a.type === 'DEDUCTION').reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
-                  const liveTotalDeductions = liveTravelDed + liveCSG + liveNSF + liveUserDeds;
+                  const liveTransfers = (selectedPayroll.transfers || []).reduce((s, t) => s + Number(t.amount), 0);
+                  const liveTotalDeductions = liveTravelDed + liveCSG + liveNSF + liveUserDeds + liveTransfers;
                   const liveNet = liveTotalEarnings - liveTotalDeductions;
                   return (
                     <div className="mb-4 p-3 bg-gray-900 text-white rounded-md text-sm">

@@ -12,6 +12,9 @@ import {
   bulkSetCompensation,
   upsertEmployeeCompensation,
   deleteEmployeeCompensation,
+  getEmployeeTransfers,
+  upsertEmployeeTransfer,
+  deleteEmployeeTransfer,
 } from '../controllers/employeeController';
 import { authenticate, authorize, HR_ROLES } from '../middleware/auth';
 import { validate } from '../middleware/validation';
@@ -76,6 +79,19 @@ router.post(
   upsertEmployeeCompensation
 );
 router.delete('/:id/compensations/:compensationId', authorize(...HR_ROLES), deleteEmployeeCompensation);
+
+// Per-employee transfer elections
+router.get('/:id/transfers', getEmployeeTransfers);
+router.post(
+  '/:id/transfers',
+  authorize(...HR_ROLES),
+  validate([
+    body('accountType').notEmpty().withMessage('accountType is required'),
+    body('amount').isNumeric().withMessage('Amount must be a number'),
+  ]),
+  upsertEmployeeTransfer
+);
+router.delete('/:id/transfers/:transferId', authorize(...HR_ROLES), deleteEmployeeTransfer);
 
 // Hard delete — ADMIN only
 router.delete('/:id', authorize('ADMIN'), deleteEmployee);

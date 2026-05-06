@@ -39,6 +39,7 @@ interface PayslipData {
     sickLeaveBalance?: number;
     adjustments?: PayrollAdjustmentItem[];
     compensations?: { label: string; amount: number }[];
+    transfers?: { label: string; amount: number }[];
   };
   company: {
     name: string;
@@ -227,6 +228,20 @@ export const generatePayslipPDF = async (
       amtRow('Total Deductions:', `Rs ${data.payroll.totalDeductions.toFixed(2)}`, y, true);
       y += ROW_H + 8;
       doc.y = y;
+
+      // ── Transfers ──────────────────────────────────────────────────
+      const transferLines = (data.payroll.transfers || []).filter(t => t.amount > 0);
+      if (transferLines.length > 0) {
+        hr();
+        heading('Transfers');
+        y = doc.y;
+        transferLines.forEach((line, i) => {
+          if (i > 0) y += ROW_H;
+          amtRow(`${line.label}:`, `Rs ${line.amount.toFixed(2)}`, y);
+        });
+        y += ROW_H + 8;
+        doc.y = y;
+      }
 
       // ── Net Salary ─────────────────────────────────────────────────
       hr(true);

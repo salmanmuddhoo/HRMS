@@ -28,10 +28,10 @@ const PayrollWiki: React.FC = () => {
       ),
     },
     {
-      title: 'CSG — Contribution Sociale Généralisée',
+      title: 'CSG — Contribution Sociale Généralisée (Employee)',
       content: (
         <div className="space-y-3 text-sm text-gray-700">
-          <p>CSG is a statutory employee contribution deducted from gross salary.</p>
+          <p>CSG is a statutory <span className="font-medium">employee</span> contribution deducted from gross salary.</p>
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="bg-gray-100">
@@ -53,15 +53,15 @@ const PayrollWiki: React.FC = () => {
               </tr>
             </tbody>
           </table>
-          <p className="text-xs text-gray-500">CSG is auto-calculated on every save and cannot be manually overridden.</p>
+          <p className="text-xs text-gray-500">CSG is auto-calculated on every save and deducted from the employee's net salary. The employer remits this on behalf of the employee.</p>
         </div>
       ),
     },
     {
-      title: 'NSF — National Savings Fund',
+      title: 'NSF — National Savings Fund (Employee)',
       content: (
         <div className="space-y-3 text-sm text-gray-700">
-          <p>NSF is a statutory employee contribution calculated on basic salary, capped at Rs 21,435.</p>
+          <p>NSF is a statutory <span className="font-medium">employee</span> contribution calculated on basic salary, capped at Rs 21,435.</p>
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="bg-gray-100">
@@ -80,7 +80,60 @@ const PayrollWiki: React.FC = () => {
               </tr>
             </tbody>
           </table>
-          <p className="text-xs text-gray-500">NSF is auto-calculated on every save and cannot be manually overridden.</p>
+          <p className="text-xs text-gray-500">NSF is auto-calculated on every save and deducted from the employee's net salary. The employer remits this on behalf of the employee.</p>
+        </div>
+      ),
+    },
+    {
+      title: 'Employer CSG & NSF Contributions',
+      content: (
+        <div className="space-y-3 text-sm text-gray-700">
+          <p>In addition to remitting employee deductions, the <span className="font-medium">employer</span> must make its own statutory contributions. These do <span className="font-semibold">not</span> affect employee net salary — they are an additional cost borne by the organisation.</p>
+
+          <h4 className="font-semibold text-gray-800 mt-3">Employer CSG</h4>
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="bg-orange-50">
+                <th className="border border-gray-300 px-3 py-2 text-left">Employee Monthly Basic Salary</th>
+                <th className="border border-gray-300 px-3 py-2 text-left">Employer Rate</th>
+                <th className="border border-gray-300 px-3 py-2 text-left">Example (Rs 40,000)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="border border-gray-300 px-3 py-2">≤ Rs 50,000</td>
+                <td className="border border-gray-300 px-3 py-2 font-semibold">3%</td>
+                <td className="border border-gray-300 px-3 py-2">Rs 1,200.00</td>
+              </tr>
+              <tr className="bg-gray-50">
+                <td className="border border-gray-300 px-3 py-2">&gt; Rs 50,000</td>
+                <td className="border border-gray-300 px-3 py-2 font-semibold">6%</td>
+                <td className="border border-gray-300 px-3 py-2">Rs 3,600.00 (on Rs 60,000)</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h4 className="font-semibold text-gray-800 mt-3">Employer NSF</h4>
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="bg-orange-50">
+                <th className="border border-gray-300 px-3 py-2 text-left">Description</th>
+                <th className="border border-gray-300 px-3 py-2 text-left">Employer Rate</th>
+                <th className="border border-gray-300 px-3 py-2 text-left">Example (Rs 40,000)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="border border-gray-300 px-3 py-2">Flat rate on full basic salary (no cap)</td>
+                <td className="border border-gray-300 px-3 py-2 font-semibold">2.5%</td>
+                <td className="border border-gray-300 px-3 py-2">Rs 1,000.00</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div className="bg-orange-50 border border-orange-200 rounded p-3 text-xs text-orange-800 mt-2">
+            <span className="font-semibold">Where to find totals:</span> The Payroll Management page (Treasurer view) shows a monthly "Employer Contributions" summary card with total CSG and NSF the employer must remit. Individual payroll detail modals also show the per-employee employer contribution.
+          </div>
         </div>
       ),
     },

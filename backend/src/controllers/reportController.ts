@@ -206,6 +206,8 @@ export const getPayrollReport = async (req: AuthRequest, res: Response) => {
             jobTitle: true,
           },
         },
+        adjustments: { select: { label: true, type: true, amount: true } },
+        transfers: { select: { accountType: true, label: true, amount: true } },
       },
       orderBy: [{ year: 'desc' }, { month: 'desc' }],
     });
@@ -224,14 +226,40 @@ export const getPayrollReport = async (req: AuthRequest, res: Response) => {
     const totalGrossSalary = payrolls.reduce((sum, p) => sum + Number(p.grossSalary), 0);
     const totalNetSalary = payrolls.reduce((sum, p) => sum + Number(p.netSalary), 0);
 
+    // Employee CSG and NSF (deducted from employee salary, remitted by employer)
+    const totalEmployeeCSG = payrolls.reduce((sum, p) => {
+      const csg = p.adjustments.find(a => a.label === 'CSG');
+      return sum + (csg ? Number(csg.amount) : 0);
+    }, 0);
+    const totalEmployeeNSF = payrolls.reduce((sum, p) => {
+      const nsf = p.adjustments.find(a => a.label === 'NSF');
+      return sum + (nsf ? Number(nsf.amount) : 0);
+    }, 0);
+
+    // Employer CSG and NSF (additional employer contribution, not deducted from employee)
+    const totalEmployerCSG = payrolls.reduce((sum, p) => {
+      const base = Number(p.baseSalary);
+      return sum + (base <= 50000 ? base * 0.03 : base * 0.06);
+    }, 0);
+    const totalEmployerNSF = payrolls.reduce((sum, p) => {
+      return sum + Number(p.baseSalary) * 0.025;
+    }, 0);
+
+    // Transfer totals by account type
+    const transfersByAccount: Record<string, { label: string; total: number }> = {};
+    for (const p of payrolls) {
+      for (const t of p.transfers) {
+        if (!transfersByAccount[t.accountType]) {
+          transfersByAccount[t.accountType] = { label: t.label, total: 0 };
+        }
+        transfersByAccount[t.accountType].total += Number(t.amount);
+      }
+    }
+
     const payrollsByDepartment = payrolls.reduce((acc: any, payroll) => {
       const dept = payroll.employee.department;
       if (!acc[dept]) {
-        acc[dept] = {
-          count: 0,
-          totalNetSalary: 0,
-          totalDeductions: 0,
-        };
+        acc[dept] = { count: 0, totalNetSalary: 0, totalDeductions: 0 };
       }
       acc[dept].count++;
       acc[dept].totalNetSalary += Number(payroll.netSalary);
@@ -248,6 +276,11 @@ export const getPayrollReport = async (req: AuthRequest, res: Response) => {
         totalDeductions,
         totalGrossSalary,
         totalNetSalary,
+        totalEmployeeCSG,
+        totalEmployeeNSF,
+        totalEmployerCSG,
+        totalEmployerNSF,
+        transfersByAccount,
         payrollsByDepartment,
       },
     });

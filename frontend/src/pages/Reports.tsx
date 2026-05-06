@@ -86,6 +86,8 @@ interface PayrollRecord {
   grossSalary: number;
   netSalary: number;
   status: 'DRAFT' | 'APPROVED' | 'LOCKED';
+  adjustments?: { label: string; type: string; amount: number }[];
+  transfers?: { accountType: string; label: string; amount: number }[];
 }
 
 interface PayrollReportData {
@@ -97,6 +99,11 @@ interface PayrollReportData {
     totalDeductions: number;
     totalGrossSalary: number;
     totalNetSalary: number;
+    totalEmployeeCSG: number;
+    totalEmployeeNSF: number;
+    totalEmployerCSG: number;
+    totalEmployerNSF: number;
+    transfersByAccount: Record<string, { label: string; total: number }>;
     payrollsByDepartment: Record<string, { count: number; totalNetSalary: number; totalDeductions: number }>;
   };
 }
@@ -689,27 +696,78 @@ const Reports: React.FC = () => {
             </div>
           </div>
 
-          {/* Department Breakdown */}
-          {Object.keys(payrollData.statistics.payrollsByDepartment).length > 0 && (
+          {/* Statutory & Employer Contributions Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            {/* Employee CSG / NSF */}
+            <div className="bg-white p-4 rounded-lg shadow">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Employee Statutory Deductions</h3>
+              <p className="text-xs text-gray-500 mb-3">Deducted from employee salaries and remitted by the employer to the authorities.</p>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center border-b pb-2">
+                  <span className="text-sm text-gray-600">Total CSG (employee)</span>
+                  <span className="text-sm font-semibold text-red-600">{formatCurrency(payrollData.statistics.totalEmployeeCSG)}</span>
+                </div>
+                <div className="flex justify-between items-center border-b pb-2">
+                  <span className="text-sm text-gray-600">Total NSF (employee)</span>
+                  <span className="text-sm font-semibold text-red-600">{formatCurrency(payrollData.statistics.totalEmployeeNSF)}</span>
+                </div>
+                <div className="flex justify-between items-center pt-1">
+                  <span className="text-sm font-semibold text-gray-800">Total to remit</span>
+                  <span className="text-sm font-bold text-red-700">{formatCurrency(payrollData.statistics.totalEmployeeCSG + payrollData.statistics.totalEmployeeNSF)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Employer CSG / NSF */}
+            <div className="bg-orange-50 border border-orange-200 p-4 rounded-lg shadow">
+              <h3 className="text-sm font-semibold text-orange-800 mb-3">Employer Contributions</h3>
+              <p className="text-xs text-orange-600 mb-3">Additional employer-side contributions not deducted from employees.</p>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center border-b border-orange-200 pb-2">
+                  <span className="text-sm text-orange-700">Total CSG (employer 3%/6%)</span>
+                  <span className="text-sm font-semibold text-orange-700">{formatCurrency(payrollData.statistics.totalEmployerCSG)}</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-orange-200 pb-2">
+                  <span className="text-sm text-orange-700">Total NSF (employer 2.5%)</span>
+                  <span className="text-sm font-semibold text-orange-700">{formatCurrency(payrollData.statistics.totalEmployerNSF)}</span>
+                </div>
+                <div className="flex justify-between items-center pt-1">
+                  <span className="text-sm font-semibold text-orange-900">Total employer contribution</span>
+                  <span className="text-sm font-bold text-orange-900">{formatCurrency(payrollData.statistics.totalEmployerCSG + payrollData.statistics.totalEmployerNSF)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Transfers by Account */}
+          {Object.keys(payrollData.statistics.transfersByAccount).length > 0 && (
             <div className="bg-white p-4 rounded-lg shadow mb-6">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Payroll by Department</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {Object.entries(payrollData.statistics.payrollsByDepartment).map(([dept, data]) => (
-                  <div key={dept} className="border rounded-lg p-3">
-                    <div className="text-sm font-medium text-gray-900">{dept}</div>
-                    <div className="mt-1 text-xs text-gray-500">
-                      {data.count} employees
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Salary Transfers by Account</h3>
+              <p className="text-xs text-gray-500 mb-3">Monthly salary transfer amounts elected by employees, deducted from net pay.</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {['SHARES', 'MSA', 'HSA', 'SHARIAH'].map(key => {
+                  const entry = payrollData.statistics.transfersByAccount[key];
+                  const labels: Record<string, string> = {
+                    SHARES: 'Shares A/C',
+                    MSA: 'MSA',
+                    HSA: 'HSA',
+                    SHARIAH: 'Shariah Compliant Financing',
+                  };
+                  return (
+                    <div key={key} className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                      <div className="text-xs font-medium text-blue-700 mb-1">{labels[key]}</div>
+                      <div className="text-lg font-bold text-blue-900">
+                        {entry ? formatCurrency(entry.total) : formatCurrency(0)}
+                      </div>
                     </div>
-                    <div className="mt-2 flex justify-between">
-                      <span className="text-xs text-gray-500">Net Salary</span>
-                      <span className="text-sm font-medium text-green-600">{formatCurrency(data.totalNetSalary)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-xs text-gray-500">Deductions</span>
-                      <span className="text-sm font-medium text-red-600">{formatCurrency(data.totalDeductions)}</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
+              </div>
+              <div className="mt-3 flex justify-end">
+                <span className="text-sm text-gray-500 mr-3">Total transfers:</span>
+                <span className="text-sm font-bold text-blue-800">
+                  {formatCurrency(Object.values(payrollData.statistics.transfersByAccount).reduce((s, v) => s + v.total, 0))}
+                </span>
               </div>
             </div>
           )}

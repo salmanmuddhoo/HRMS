@@ -42,6 +42,7 @@ const Payslips: React.FC = () => {
   const [payrolls, setPayrolls] = useState<PayrollRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(0); // 0 = all months
   const [generating, setGenerating] = useState<string | null>(null);
   const [generatingAll, setGeneratingAll] = useState(false);
   const [generatingAllProgress, setGeneratingAllProgress] = useState<{ done: number; total: number } | null>(null);
@@ -49,10 +50,19 @@ const Payslips: React.FC = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  const months = [
+    { value: 1, label: 'January' }, { value: 2, label: 'February' }, { value: 3, label: 'March' },
+    { value: 4, label: 'April' }, { value: 5, label: 'May' }, { value: 6, label: 'June' },
+    { value: 7, label: 'July' }, { value: 8, label: 'August' }, { value: 9, label: 'September' },
+    { value: 10, label: 'October' }, { value: 11, label: 'November' }, { value: 12, label: 'December' },
+  ];
+
   const fetchPayrolls = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await api.getPayrolls({ year: selectedYear });
+      const params: any = { year: selectedYear };
+      if (selectedMonth) params.month = selectedMonth;
+      const response = await api.getPayrolls(params);
       if ((response as any).success) {
         let data: PayrollRecord[] = ((response as any).data || []).filter(
           (p: PayrollRecord) => p.status === 'APPROVED' || p.status === 'LOCKED'
@@ -69,7 +79,7 @@ const Payslips: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedYear, canProcessPayroll, user]);
+  }, [selectedYear, selectedMonth, canProcessPayroll, user]);
 
   useEffect(() => {
     fetchPayrolls();
@@ -197,8 +207,8 @@ const Payslips: React.FC = () => {
           </div>
         )}
 
-        {/* Year Selection */}
-        <div className="mb-6 bg-white p-4 rounded-lg shadow flex items-end gap-4">
+        {/* Year / Month Selection */}
+        <div className="mb-6 bg-white p-4 rounded-lg shadow flex flex-wrap items-end gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
             <select
@@ -208,6 +218,19 @@ const Payslips: React.FC = () => {
             >
               {years.map((y) => (
                 <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Month</label>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+              className="rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
+            >
+              <option value={0}>All Months</option>
+              {months.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
               ))}
             </select>
           </div>

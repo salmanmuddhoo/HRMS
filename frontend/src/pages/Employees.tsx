@@ -147,7 +147,7 @@ const Employees: React.FC = () => {
         <div className="flex flex-wrap gap-3 justify-between items-center mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Employees</h1>
           <div className="flex gap-2">
-            {isAdmin && (
+            {(isAdmin || user?.role === 'TREASURER') && (
               <button
                 onClick={() => { setShowCompModal(true); setCompLabel(''); setCompAmount(''); }}
                 className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 text-sm font-medium"
@@ -247,13 +247,15 @@ const Employees: React.FC = () => {
                           >
                             Leaves
                           </button>
-                          <button
-                            onClick={() => { setShowResetModal(emp.id); setNewPassword(''); }}
-                            className="px-2 py-1 bg-yellow-50 text-yellow-700 text-xs rounded hover:bg-yellow-100"
-                          >
-                            Reset PW
-                          </button>
-                          {emp.status === 'ACTIVE' && (
+                          {isAdmin && (
+                            <button
+                              onClick={() => { setShowResetModal(emp.id); setNewPassword(''); }}
+                              className="px-2 py-1 bg-yellow-50 text-yellow-700 text-xs rounded hover:bg-yellow-100"
+                            >
+                              Reset PW
+                            </button>
+                          )}
+                          {isAdmin && emp.status === 'ACTIVE' && (
                             <button
                               onClick={() => handleDeactivate(emp)}
                               disabled={actionId === emp.id}

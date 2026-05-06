@@ -36,7 +36,6 @@ interface Employee {
 const Employees: React.FC = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
-  const isTreasurer = user?.role === 'TREASURER';
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -134,6 +133,7 @@ const Employees: React.FC = () => {
     setLeaveHistoryLoading(false);
   };
 
+  const visibleEmployees = isAdmin ? employees : employees.filter(e => e.user?.role !== 'ADMIN');
   const departments = Array.from(new Set(employees.map((e) => e.department))).sort();
 
   const statusBadge = (s: string) => {
@@ -147,7 +147,7 @@ const Employees: React.FC = () => {
         <div className="flex flex-wrap gap-3 justify-between items-center mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Employees</h1>
           <div className="flex gap-2">
-            {(isAdmin || isTreasurer) && (
+            {isAdmin && (
               <button
                 onClick={() => { setShowCompModal(true); setCompLabel(''); setCompAmount(''); }}
                 className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 text-sm font-medium"
@@ -155,12 +155,14 @@ const Employees: React.FC = () => {
                 Set Compensation
               </button>
             )}
-            <Link
-              to="/employees/add"
-              className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 text-sm font-medium"
-            >
-              + Add Employee
-            </Link>
+            {isAdmin && (
+              <Link
+                to="/employees/add"
+                className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 text-sm font-medium"
+              >
+                + Add Employee
+              </Link>
+            )}
           </div>
         </div>
 
@@ -192,7 +194,7 @@ const Employees: React.FC = () => {
           <div className="flex justify-center py-16">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600" />
           </div>
-        ) : employees.length === 0 ? (
+        ) : visibleEmployees.length === 0 ? (
           <div className="text-center text-gray-500 py-16">No employees found.</div>
         ) : (
           <div className="bg-white shadow rounded-lg overflow-hidden">
@@ -209,7 +211,7 @@ const Employees: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {employees.map((emp) => (
+                  {visibleEmployees.map((emp) => (
                     <tr key={emp.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
                         <div className="font-medium text-gray-900">{emp.firstName} {emp.lastName}</div>

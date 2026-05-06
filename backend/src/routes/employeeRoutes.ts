@@ -29,7 +29,7 @@ router.get('/:id', getEmployeeById);
 
 router.post(
   '/',
-  authorize(...HR_ROLES),
+  authorize('ADMIN'),
   validate([
     body('employeeId').notEmpty().withMessage('Employee ID is required'),
     body('firstName').notEmpty().withMessage('First name is required'),

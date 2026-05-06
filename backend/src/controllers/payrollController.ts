@@ -143,9 +143,9 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
       );
     }
 
-    // Get all active employees with their compensation and transfer data
+    // Get all active non-admin employees with their compensation and transfer data
     const employees = await prisma.employee.findMany({
-      where: { status: 'ACTIVE' },
+      where: { status: 'ACTIVE', NOT: { user: { role: 'ADMIN' } } },
       include: {
         compensations: { orderBy: { createdAt: 'asc' } },
         transfers:     { orderBy: { createdAt: 'asc' } },

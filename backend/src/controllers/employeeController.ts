@@ -10,6 +10,11 @@ export const getAllEmployees = async (req: AuthRequest, res: Response) => {
 
     const where: any = {};
 
+    // Non-admins cannot see admin accounts
+    if (req.user!.role !== 'ADMIN') {
+      where.NOT = { user: { role: 'ADMIN' } };
+    }
+
     if (status) {
       where.status = status;
     }
@@ -241,6 +246,9 @@ export const updateEmployee = async (req: AuthRequest, res: Response) => {
     });
 
     if (role && employee.user && role !== employee.user.role) {
+      if (req.user!.role !== 'ADMIN') {
+        return sendError(res, 'Only admins can change a user\'s role', 403);
+      }
       await prisma.user.update({ where: { id: employee.user.id }, data: { role } });
     }
 

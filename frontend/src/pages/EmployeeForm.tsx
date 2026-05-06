@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../services/api';
 import Layout from '../components/Layout';
+import { useAuth } from '../context/AuthContext';
 
 interface LeaveDefaults {
   defaultLocalLeave: number;
@@ -12,6 +13,8 @@ const EmployeeForm: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
 
   const [loading, setLoading] = useState(false);
   const [fetchingDefaults, setFetchingDefaults] = useState(true);
@@ -492,12 +495,15 @@ const EmployeeForm: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Role *</label>
+              <label className="block text-sm font-medium text-gray-700">
+                Role *{isEdit && !isAdmin && <span className="ml-1 text-xs text-gray-400">(admin only)</span>}
+              </label>
               <select
                 name="role"
                 value={formData.role}
                 onChange={handleChange}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
+                disabled={isEdit && !isAdmin}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
               >
                 <option value="EMPLOYEE">Employee</option>
                 <option value="EMPLOYER">Employer / Manager</option>

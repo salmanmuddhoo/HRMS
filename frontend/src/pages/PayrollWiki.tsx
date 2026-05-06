@@ -61,7 +61,7 @@ const PayrollWiki: React.FC = () => {
       title: 'NSF — National Savings Fund (Employee)',
       content: (
         <div className="space-y-3 text-sm text-gray-700">
-          <p>NSF is a statutory <span className="font-medium">employee</span> contribution calculated on basic salary, capped at Rs 21,435.</p>
+          <p>NSF is a statutory <span className="font-medium">employee</span> contribution of <span className="font-semibold">1%</span> of basic salary, capped at the maximum monthly basic wage of <span className="font-semibold">Rs 28,570</span> (effective 1 July 2024).</p>
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="bg-gray-100">
@@ -71,12 +71,12 @@ const PayrollWiki: React.FC = () => {
             </thead>
             <tbody>
               <tr>
-                <td className="border border-gray-300 px-3 py-2">&lt; Rs 21,435</td>
+                <td className="border border-gray-300 px-3 py-2">&lt; Rs 28,570</td>
                 <td className="border border-gray-300 px-3 py-2 font-semibold">1% × Basic Salary</td>
               </tr>
               <tr className="bg-gray-50">
-                <td className="border border-gray-300 px-3 py-2">≥ Rs 21,435</td>
-                <td className="border border-gray-300 px-3 py-2 font-semibold">1% × Rs 21,435 = <span className="text-primary-700">Rs 214.35</span></td>
+                <td className="border border-gray-300 px-3 py-2">≥ Rs 28,570</td>
+                <td className="border border-gray-300 px-3 py-2 font-semibold">1% × Rs 28,570 = <span className="text-primary-700">Rs 285.70</span> (maximum)</td>
               </tr>
             </tbody>
           </table>
@@ -117,16 +117,21 @@ const PayrollWiki: React.FC = () => {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="bg-orange-50">
-                <th className="border border-gray-300 px-3 py-2 text-left">Description</th>
+                <th className="border border-gray-300 px-3 py-2 text-left">Monthly Basic Salary</th>
                 <th className="border border-gray-300 px-3 py-2 text-left">Employer Rate</th>
-                <th className="border border-gray-300 px-3 py-2 text-left">Example (Rs 40,000)</th>
+                <th className="border border-gray-300 px-3 py-2 text-left">Example</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td className="border border-gray-300 px-3 py-2">Flat rate on full basic salary (no cap)</td>
-                <td className="border border-gray-300 px-3 py-2 font-semibold">2.5%</td>
-                <td className="border border-gray-300 px-3 py-2">Rs 1,000.00</td>
+                <td className="border border-gray-300 px-3 py-2">&lt; Rs 28,570</td>
+                <td className="border border-gray-300 px-3 py-2 font-semibold">2.5% × Basic Salary</td>
+                <td className="border border-gray-300 px-3 py-2">Rs 25,000 → Rs 625.00</td>
+              </tr>
+              <tr className="bg-gray-50">
+                <td className="border border-gray-300 px-3 py-2">≥ Rs 28,570</td>
+                <td className="border border-gray-300 px-3 py-2 font-semibold">2.5% × Rs 28,570 = <span className="text-orange-700">Rs 714.25</span> (maximum)</td>
+                <td className="border border-gray-300 px-3 py-2">Rs 50,000 → Rs 714.25</td>
               </tr>
             </tbody>
           </table>

@@ -10,7 +10,7 @@ const calcCSG = (baseSalary: number): number =>
   baseSalary <= 50000 ? baseSalary * 0.015 : baseSalary * 0.03;
 
 const calcNSF = (baseSalary: number): number =>
-  baseSalary >= 21435 ? 21435 * 0.01 : baseSalary * 0.01;
+  baseSalary >= 28570 ? 28570 * 0.01 : baseSalary * 0.01;
 
 export const getAllPayrolls = async (req: AuthRequest, res: Response) => {
   try {

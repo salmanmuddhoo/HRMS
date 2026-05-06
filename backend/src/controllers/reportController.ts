@@ -242,7 +242,7 @@ export const getPayrollReport = async (req: AuthRequest, res: Response) => {
       return sum + (base <= 50000 ? base * 0.03 : base * 0.06);
     }, 0);
     const totalEmployerNSF = payrolls.reduce((sum, p) => {
-      return sum + Number(p.baseSalary) * 0.025;
+      return sum + Math.min(Number(p.baseSalary), 28570) * 0.025;
     }, 0);
 
     // Transfer totals by account type

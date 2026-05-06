@@ -192,6 +192,10 @@ class ApiService {
     return this.request({ method: 'PUT', url: `/payroll/${id}/reject`, data: { rejectionReason } });
   }
 
+  async reprocessPayroll(id: string) {
+    return this.request({ method: 'POST', url: `/payroll/${id}/reprocess` });
+  }
+
   async lockPayroll(id: string) {
     return this.request({ method: 'PUT', url: `/payroll/${id}/lock` });
   }

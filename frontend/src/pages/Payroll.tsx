@@ -53,9 +53,13 @@ const Payroll: React.FC = () => {
   const [processing, setProcessing] = useState(false);
   const [cycleDates, setCycleDates] = useState<{ startDate: string; endDate: string } | null>(null);
 
-  // View/Edit modal
+  // Edit modal (Treasurer)
   const [showModal, setShowModal] = useState(false);
   const [selectedPayroll, setSelectedPayroll] = useState<PayrollRecord | null>(null);
+
+  // View modal (Secretary — read-only)
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [viewPayroll, setViewPayroll] = useState<PayrollRecord | null>(null);
 
   // Reject modal
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -185,14 +189,28 @@ const Payroll: React.FC = () => {
     }
   };
 
+  const handleReprocess = async (id: string) => {
+    if (!window.confirm('Reprocess this payroll? This will refresh attendance data and reset it to DRAFT for secretary re-review.')) return;
+    setError('');
+    try {
+      const response = await api.reprocessPayroll(id);
+      if ((response as any).success) {
+        setSuccess('Payroll reprocessed and reset to DRAFT for re-review.');
+        fetchPayrolls();
+      }
+    } catch (error: any) {
+      setError(error.response?.data?.message || 'Failed to reprocess payroll');
+    }
+  };
+
   const handleApproveAll = async () => {
-    const pending = payrolls.filter(p => p.status === 'DRAFT' || p.status === 'REJECTED');
+    const pending = payrolls.filter(p => p.status === 'DRAFT');
     if (pending.length === 0) {
-      setError('No pending payrolls to approve');
+      setError('No draft payrolls to approve');
       return;
     }
 
-    if (!window.confirm(`Approve all ${pending.length} pending payrolls?`)) return;
+    if (!window.confirm(`Approve all ${pending.length} draft payrolls?`)) return;
 
     setApprovingAll(true);
     setError('');
@@ -416,7 +434,7 @@ const Payroll: React.FC = () => {
                 {processing ? 'Processing...' : 'Process Payroll'}
               </button>
             )}
-            {canApprovePayroll && payrolls.length > 0 && (draftCount + rejectedCount) > 0 && (
+            {canApprovePayroll && payrolls.length > 0 && draftCount > 0 && (
               <button
                 onClick={handleApproveAll}
                 disabled={approvingAll}
@@ -428,7 +446,7 @@ const Payroll: React.FC = () => {
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                   </svg>
                 )}
-                {approvingAll ? 'Approving...' : `Approve All (${draftCount + rejectedCount})`}
+                {approvingAll ? 'Approving...' : `Approve All (${draftCount})`}
               </button>
             )}
             {canProcessPayroll && payrolls.length > 0 && approvedCount > 0 && (
@@ -579,7 +597,17 @@ const Payroll: React.FC = () => {
                       </td>
                       {(canProcessPayroll || canApprovePayroll) && (
                         <td className="px-4 py-3 whitespace-nowrap text-center">
-                          <div className="flex items-center justify-center gap-2">
+                          <div className="flex items-center justify-center gap-2 flex-wrap">
+                            {/* Secretary: View button for any status */}
+                            {canApprovePayroll && !canProcessPayroll && (
+                              <button
+                                onClick={() => { setViewPayroll(payroll); setShowViewModal(true); }}
+                                className="text-primary-600 hover:text-primary-900 text-sm font-medium"
+                              >
+                                View
+                              </button>
+                            )}
+                            {/* Treasurer: Edit (not on locked) */}
                             {canProcessPayroll && payroll.status !== 'LOCKED' && (
                               <button
                                 onClick={() => openEditModal(payroll)}
@@ -588,22 +616,50 @@ const Payroll: React.FC = () => {
                                 Edit
                               </button>
                             )}
-                            {canApprovePayroll && (payroll.status === 'DRAFT' || payroll.status === 'REJECTED') && (
+                            {/* Secretary: Approve / Reject only on DRAFT */}
+                            {canApprovePayroll && !canProcessPayroll && payroll.status === 'DRAFT' && (
+                              <>
+                                <button
+                                  onClick={() => handleApprove(payroll.id)}
+                                  className="text-green-600 hover:text-green-900 text-sm font-medium"
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={() => openRejectModal(payroll)}
+                                  className="text-red-600 hover:text-red-900 text-sm font-medium"
+                                >
+                                  Reject
+                                </button>
+                              </>
+                            )}
+                            {/* Admin can also approve/reject on DRAFT */}
+                            {canApprovePayroll && canProcessPayroll && payroll.status === 'DRAFT' && (
+                              <>
+                                <button
+                                  onClick={() => handleApprove(payroll.id)}
+                                  className="text-green-600 hover:text-green-900 text-sm font-medium"
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={() => openRejectModal(payroll)}
+                                  className="text-red-600 hover:text-red-900 text-sm font-medium"
+                                >
+                                  Reject
+                                </button>
+                              </>
+                            )}
+                            {/* Treasurer: Reprocess button for REJECTED */}
+                            {canProcessPayroll && payroll.status === 'REJECTED' && (
                               <button
-                                onClick={() => handleApprove(payroll.id)}
-                                className="text-green-600 hover:text-green-900 text-sm font-medium"
+                                onClick={() => handleReprocess(payroll.id)}
+                                className="text-orange-600 hover:text-orange-900 text-sm font-medium"
                               >
-                                Approve
+                                Reprocess
                               </button>
                             )}
-                            {canApprovePayroll && (payroll.status === 'DRAFT' || payroll.status === 'REJECTED') && (
-                              <button
-                                onClick={() => openRejectModal(payroll)}
-                                className="text-red-600 hover:text-red-900 text-sm font-medium"
-                              >
-                                Reject
-                              </button>
-                            )}
+                            {/* Treasurer: Lock on APPROVED */}
                             {canProcessPayroll && payroll.status === 'APPROVED' && (
                               <button
                                 onClick={() => handleLock(payroll.id)}
@@ -612,6 +668,7 @@ const Payroll: React.FC = () => {
                                 Lock
                               </button>
                             )}
+                            {/* Treasurer: Delete (not on locked) */}
                             {canProcessPayroll && payroll.status !== 'LOCKED' && (
                               <button
                                 onClick={() => handleDelete(payroll.id)}
@@ -627,6 +684,100 @@ const Payroll: React.FC = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Secretary View Modal (read-only) */}
+        {showViewModal && viewPayroll && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    Payroll Details — {viewPayroll.employee.firstName} {viewPayroll.employee.lastName}
+                  </h2>
+                  <p className="text-sm text-gray-500">{viewPayroll.employee.employeeId} · {viewPayroll.employee.department}</p>
+                </div>
+                <button onClick={() => setShowViewModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+              </div>
+
+              {/* Status */}
+              <div className="mb-4">
+                <span className={getStatusBadge(viewPayroll.status)}>{viewPayroll.status}</span>
+                {viewPayroll.status === 'REJECTED' && viewPayroll.rejectionReason && (
+                  <p className="mt-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">
+                    <span className="font-semibold">Rejection reason:</span> {viewPayroll.rejectionReason}
+                  </p>
+                )}
+              </div>
+
+              {/* Attendance */}
+              <div className="mb-4 p-3 bg-gray-50 rounded-md text-sm text-gray-600 grid grid-cols-2 gap-x-6 gap-y-1">
+                <div className="flex justify-between"><span>Working Days:</span><span className="font-medium">{viewPayroll.workingDays}</span></div>
+                <div className="flex justify-between"><span>Present Days:</span><span className="font-medium text-green-600">{viewPayroll.presentDays}</span></div>
+                <div className="flex justify-between"><span>Leave Days:</span><span className="font-medium text-blue-600">{viewPayroll.leaveDays}</span></div>
+                <div className="flex justify-between"><span>Absence Days:</span><span className="font-medium text-red-600">{viewPayroll.absenceDays}</span></div>
+              </div>
+
+              {/* Salary breakdown */}
+              <div className="mb-4 space-y-2 text-sm">
+                <h3 className="font-semibold text-gray-700 mb-1">Earnings</h3>
+                <div className="flex justify-between px-2"><span>Base Salary</span><span>{formatCurrency(Number(viewPayroll.baseSalary))}</span></div>
+                {Number(viewPayroll.travellingAllowance) > 0 && (
+                  <div className="flex justify-between px-2"><span>Travelling Allowance</span><span>{formatCurrency(Number(viewPayroll.travellingAllowance))}</span></div>
+                )}
+                {Number(viewPayroll.otherAllowances) > 0 && (
+                  <div className="flex justify-between px-2"><span>Other Allowances</span><span>{formatCurrency(Number(viewPayroll.otherAllowances))}</span></div>
+                )}
+                {(viewPayroll.compensations || []).map((c, i) => (
+                  <div key={i} className="flex justify-between px-2 text-amber-700"><span>{c.label}</span><span>{formatCurrency(Number(c.amount))}</span></div>
+                ))}
+                {(viewPayroll.adjustments || []).filter(a => a.type === 'ADDITION').map((a, i) => (
+                  <div key={i} className="flex justify-between px-2 text-green-700"><span>{a.label}</span><span>+{formatCurrency(Number(a.amount))}</span></div>
+                ))}
+                <div className="flex justify-between px-2 font-semibold border-t pt-1">
+                  <span>Gross Salary</span><span>{formatCurrency(Number(viewPayroll.grossSalary))}</span>
+                </div>
+
+                <h3 className="font-semibold text-gray-700 mt-3 mb-1">Deductions</h3>
+                {Number(viewPayroll.travellingDeduction) > 0 && (
+                  <div className="flex justify-between px-2 text-red-600"><span>Travel Deduction</span><span>-{formatCurrency(Number(viewPayroll.travellingDeduction))}</span></div>
+                )}
+                {(viewPayroll.adjustments || []).filter(a => a.type === 'DEDUCTION').map((a, i) => (
+                  <div key={i} className="flex justify-between px-2 text-red-600"><span>{a.label}</span><span>-{formatCurrency(Number(a.amount))}</span></div>
+                ))}
+                <div className="flex justify-between px-2 font-semibold border-t pt-1 text-red-700">
+                  <span>Total Deductions</span><span>-{formatCurrency(Number(viewPayroll.totalDeductions))}</span>
+                </div>
+              </div>
+
+              {/* Net */}
+              <div className="bg-gray-900 text-white rounded-md p-3 flex justify-between items-center mb-4">
+                <span className="font-semibold">Net Salary</span>
+                <span className="text-xl font-bold">{formatCurrency(Number(viewPayroll.netSalary))}</span>
+              </div>
+
+              {/* Actions — only for DRAFT */}
+              {viewPayroll.status === 'DRAFT' && (
+                <div className="flex justify-end gap-3 pt-2 border-t">
+                  <button
+                    onClick={() => openRejectModal(viewPayroll)}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm font-medium"
+                  >
+                    Reject
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await handleApprove(viewPayroll.id);
+                      setShowViewModal(false);
+                    }}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
+                  >
+                    Approve
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}

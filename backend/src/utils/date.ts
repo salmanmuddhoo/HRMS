@@ -11,6 +11,27 @@ export const isWeekend = (date: Date): boolean => {
   return day === 0 || day === 6; // Sunday or Saturday
 };
 
+// Working days for payroll: Monday–Saturday; only Sunday is off
+export const countPayrollWorkingDays = (
+  startDate: Date,
+  endDate: Date,
+  publicHolidays: Date[] = []
+): number => {
+  let count = 0;
+  const current = new Date(startDate);
+  while (current <= endDate) {
+    // Sunday === 0; every other day (Mon–Sat) is a working day
+    if (current.getDay() !== 0) {
+      const isHoliday = publicHolidays.some(
+        h => h.toDateString() === current.toDateString()
+      );
+      if (!isHoliday) count++;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  return count;
+};
+
 export const getWorkingDays = (
   startDate: Date,
   endDate: Date,

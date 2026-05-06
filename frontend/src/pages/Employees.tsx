@@ -36,6 +36,7 @@ interface Employee {
 const Employees: React.FC = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
+  const isTreasurer = user?.role === 'TREASURER';
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -146,12 +147,14 @@ const Employees: React.FC = () => {
         <div className="flex flex-wrap gap-3 justify-between items-center mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Employees</h1>
           <div className="flex gap-2">
-            <button
-              onClick={() => { setShowCompModal(true); setCompLabel(''); setCompAmount(''); }}
-              className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 text-sm font-medium"
-            >
-              Set Compensation
-            </button>
+            {(isAdmin || isTreasurer) && (
+              <button
+                onClick={() => { setShowCompModal(true); setCompLabel(''); setCompAmount(''); }}
+                className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 text-sm font-medium"
+              >
+                Set Compensation
+              </button>
+            )}
             <Link
               to="/employees/add"
               className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 text-sm font-medium"

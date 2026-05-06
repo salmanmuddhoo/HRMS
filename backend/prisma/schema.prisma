@@ -125,6 +125,7 @@ model Attendance {
   leaveType   LeaveType?
   isHalfDay   Boolean   @default(false)
   halfDayPeriod String?
+  secondHalfLeaveType LeaveType?
   isAbsence   Boolean  @default(false)
   remarks     String?
   createdAt   DateTime @default(now())

@@ -94,7 +94,7 @@ export const generatePayslip = async (req: AuthRequest, res: Response) => {
     // Generate PDF — use /tmp on serverless (Vercel); uploads/ on self-hosted
     const uploadDir = process.env.VERCEL ? '/tmp' : (process.env.UPLOAD_DIR || 'uploads');
     const payslipsDir = path.join(uploadDir, 'payslips');
-    const filename = `payslip_${payroll.employee.employeeId}_${payroll.month}_${payroll.year}.pdf`;
+    const filename = `Payslip_${payroll.employee.employeeId}.pdf`;
     const pdfPath = path.join(payslipsDir, filename);
 
     await generatePayslipPDF(payslipData, pdfPath);
@@ -166,7 +166,7 @@ export const downloadPayslip = async (req: AuthRequest, res: Response) => {
         prisma.systemConfig.findUnique({ where: { key: 'COMPANY_EMAIL' } }),
       ]);
       const uploadDir = process.env.VERCEL ? '/tmp' : (process.env.UPLOAD_DIR || 'uploads');
-      const regeneratedPath = path.join(uploadDir, 'payslips', path.basename(payslip.pdfPath || `payslip_${emp.employeeId}_${pr.month}_${pr.year}.pdf`));
+      const regeneratedPath = path.join(uploadDir, 'payslips', path.basename(payslip.pdfPath || `Payslip_${emp.employeeId}.pdf`));
       await generatePayslipPDF({
         employee: { employeeId: emp.employeeId, firstName: emp.firstName, lastName: emp.lastName, email: emp.email, department: emp.department, jobTitle: emp.jobTitle, nationalId: emp.nationalId || '' },
         payroll: { id: pr.id, month: pr.month, year: pr.year, workingDays: pr.workingDays, presentDays: pr.presentDays, leaveDays: pr.leaveDays, absenceDays: pr.absenceDays, baseSalary: Number(pr.baseSalary), travellingAllowance: Number(pr.travellingAllowance), otherAllowances: Number(pr.otherAllowances), travellingDeduction: Number(pr.travellingDeduction), totalDeductions: Number(pr.totalDeductions), grossSalary: Number(pr.grossSalary), netSalary: Number(pr.netSalary), localLeaveBalance: Number(emp.localLeaveBalance), sickLeaveBalance: Number(emp.sickLeaveBalance), adjustments: (pr.adjustments || []).map((a: any) => ({ label: a.label, type: a.type, amount: Number(a.amount) })), compensations: (pr.compensations || []).map((c: any) => ({ label: c.label, amount: Number(c.amount) })) },
@@ -183,7 +183,7 @@ export const downloadPayslip = async (req: AuthRequest, res: Response) => {
     });
 
     // Send file
-    const filename = `payslip_${payslip.payroll.employee.employeeId}_${payslip.payroll.month}_${payslip.payroll.year}.pdf`;
+    const filename = `Payslip_${payslip.payroll.employee.employeeId}.pdf`;
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

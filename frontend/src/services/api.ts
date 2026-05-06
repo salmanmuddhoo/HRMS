@@ -216,10 +216,13 @@ class ApiService {
     const response = await this.api.get(`/payslips/download/${payrollId}`, {
       responseType: 'blob',
     });
+    const disposition = response.headers['content-disposition'] || '';
+    const match = disposition.match(/filename="?([^"]+)"?/);
+    const filename = match ? match[1] : `Payslip_${payrollId}.pdf`;
     const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = `payslip_${payrollId}.pdf`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

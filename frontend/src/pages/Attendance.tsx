@@ -23,6 +23,7 @@ interface AttendanceRecord {
   leaveType?: string;
   isHalfDay?: boolean;
   halfDayPeriod?: string;
+  secondHalfLeaveType?: string;
   remarks?: string;
 }
 
@@ -211,35 +212,61 @@ const Attendance: React.FC = () => {
         const leaveTextColor = isSick ? 'text-red-700' : 'text-blue-700';
 
         if (isHalfDayLeave) {
-          if (period === 'MORNING') {
+          const hasDualLeave = !!record.secondHalfLeaveType;
+          if (hasDualLeave) {
+            const morningType = period === 'MORNING' ? record.leaveType : record.secondHalfLeaveType;
+            const afternoonType = period === 'MORNING' ? record.secondHalfLeaveType : record.leaveType;
+            const morningColor = morningType === 'SICK' ? sickLeaveColor : annualLeaveColor;
+            const afternoonColor = afternoonType === 'SICK' ? sickLeaveColor : annualLeaveColor;
+            const morningLabel = morningType === 'SICK' ? 'SL' : 'AL';
+            const afternoonLabel = afternoonType === 'SICK' ? 'SL' : 'AL';
+            const morningTextColor = morningType === 'SICK' ? 'text-red-700' : 'text-blue-700';
+            const afternoonTextColor = afternoonType === 'SICK' ? 'text-red-700' : 'text-blue-700';
             customStyle = {
-              background: `linear-gradient(135deg, ${leaveColor} 50%, ${presentColor} 50%)`,
+              background: `linear-gradient(135deg, ${morningColor} 50%, ${afternoonColor} 50%)`,
             };
+            bgColor = '';
+            content = (
+              <div className="flex flex-col items-center justify-center h-full w-full relative">
+                <span className={`text-[10px] font-bold ${morningTextColor} absolute top-1 left-1`}>
+                  {morningLabel}
+                </span>
+                <span className={`text-[10px] font-bold ${afternoonTextColor} absolute bottom-1 right-1`}>
+                  {afternoonLabel}
+                </span>
+              </div>
+            );
           } else {
-            customStyle = {
-              background: `linear-gradient(135deg, ${presentColor} 50%, ${leaveColor} 50%)`,
-            };
+            if (period === 'MORNING') {
+              customStyle = {
+                background: `linear-gradient(135deg, ${leaveColor} 50%, ${presentColor} 50%)`,
+              };
+            } else {
+              customStyle = {
+                background: `linear-gradient(135deg, ${presentColor} 50%, ${leaveColor} 50%)`,
+              };
+            }
+            bgColor = '';
+            content = (
+              <div className="flex flex-col items-center justify-center h-full w-full relative">
+                {period === 'MORNING' ? (
+                  <>
+                    <span className={`text-[10px] font-bold ${leaveTextColor} absolute top-1 left-1`}>
+                      {isSick ? 'SL' : 'AL'}
+                    </span>
+                    <span className="text-[10px] font-bold text-green-700 absolute bottom-1 right-1">P</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-[10px] font-bold text-green-700 absolute top-1 left-1">P</span>
+                    <span className={`text-[10px] font-bold ${leaveTextColor} absolute bottom-1 right-1`}>
+                      {isSick ? 'SL' : 'AL'}
+                    </span>
+                  </>
+                )}
+              </div>
+            );
           }
-          bgColor = '';
-          content = (
-            <div className="flex flex-col items-center justify-center h-full w-full relative">
-              {period === 'MORNING' ? (
-                <>
-                  <span className={`text-[10px] font-bold ${leaveTextColor} absolute top-1 left-1`}>
-                    {isSick ? 'SL' : 'AL'}
-                  </span>
-                  <span className="text-[10px] font-bold text-green-700 absolute bottom-1 right-1">P</span>
-                </>
-              ) : (
-                <>
-                  <span className="text-[10px] font-bold text-green-700 absolute top-1 left-1">P</span>
-                  <span className={`text-[10px] font-bold ${leaveTextColor} absolute bottom-1 right-1`}>
-                    {isSick ? 'SL' : 'AL'}
-                  </span>
-                </>
-              )}
-            </div>
-          );
         } else {
           if (isSick) {
             bgColor = 'bg-red-100';
@@ -285,7 +312,14 @@ const Attendance: React.FC = () => {
         key={dateKey}
         style={customStyle}
         className={`px-2 py-2 text-center text-sm font-medium ${bgColor} ${textColor} border-r border-gray-200 h-14 relative`}
-        title={holiday ? holiday.name : (record?.isHalfDay ? `${record.halfDayPeriod === 'MORNING' ? 'Morning' : 'Afternoon'} ${record.leaveType === 'SICK' ? 'Sick' : 'Annual'} Leave` : (record?.remarks || (isWeekend ? 'Weekend' : '')))}
+        title={
+          holiday ? holiday.name :
+          record?.isHalfDay && record.secondHalfLeaveType
+            ? `Morning: ${(record.halfDayPeriod === 'MORNING' ? record.leaveType : record.secondHalfLeaveType) === 'SICK' ? 'Sick' : 'Annual'} Leave | Afternoon: ${(record.halfDayPeriod === 'MORNING' ? record.secondHalfLeaveType : record.leaveType) === 'SICK' ? 'Sick' : 'Annual'} Leave`
+            : record?.isHalfDay
+              ? `${record.halfDayPeriod === 'MORNING' ? 'Morning' : 'Afternoon'} ${record.leaveType === 'SICK' ? 'Sick' : 'Annual'} Leave`
+              : (record?.remarks || (isWeekend ? 'Weekend' : ''))
+        }
       >
         {content}
       </td>

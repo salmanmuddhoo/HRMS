@@ -81,6 +81,7 @@ model Employee {
   localLeaveBalance Decimal           @default(0)
   sickLeaveBalance Decimal            @default(0)
   compensations    EmployeeCompensation[]
+  transfers        EmployeeTransfer[]
   leaves           Leave[]
   attendances      Attendance[]
   payrolls         Payroll[]
@@ -166,6 +167,7 @@ model Payroll {
   payslip               Payslip?
   adjustments           PayrollAdjustment[]
   compensations         PayrollCompensation[]
+  transfers             PayrollTransfer[]
 
   @@unique([employeeId, month, year])
   @@map("payrolls")
@@ -258,4 +260,30 @@ model AuditLog {
   createdAt   DateTime @default(now())
 
   @@map("audit_logs")
+}
+
+model EmployeeTransfer {
+  id          String   @id @default(uuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  accountType String   // SHARES | MSA | HSA | SHARIAH
+  label       String   // display name e.g. "Shares A/C"
+  amount      Decimal
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([employeeId, accountType])
+  @@map("employee_transfers")
+}
+
+model PayrollTransfer {
+  id          String   @id @default(uuid())
+  payrollId   String
+  payroll     Payroll  @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+  accountType String
+  label       String
+  amount      Decimal
+  createdAt   DateTime @default(now())
+
+  @@map("payroll_transfers")
 }

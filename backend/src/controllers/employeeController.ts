@@ -483,3 +483,66 @@ export const deleteEmployeeCompensation = async (req: AuthRequest, res: Response
     return sendError(res, 'Failed to delete compensation', 500);
   }
 };
+
+// ── Transfers ───────────────────────────────────────────────────────────────
+
+const TRANSFER_LABELS: Record<string, string> = {
+  SHARES: 'Shares A/C',
+  MSA: 'MSA',
+  HSA: 'HSA',
+  SHARIAH: 'Shariah Compliant Financing',
+};
+
+export const getEmployeeTransfers = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const employee = await prisma.employee.findUnique({ where: { id } });
+    if (!employee) return sendError(res, 'Employee not found', 404);
+    const transfers = await prisma.employeeTransfer.findMany({
+      where: { employeeId: id },
+      orderBy: { createdAt: 'asc' },
+    });
+    return sendSuccess(res, transfers);
+  } catch (error: any) {
+    return sendError(res, 'Failed to fetch transfers', 500);
+  }
+};
+
+export const upsertEmployeeTransfer = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { accountType, amount } = req.body;
+
+    if (!accountType || !TRANSFER_LABELS[accountType]) {
+      return sendError(res, `accountType must be one of: ${Object.keys(TRANSFER_LABELS).join(', ')}`, 400);
+    }
+    const amt = parseFloat(amount);
+    if (isNaN(amt) || amt < 0) return sendError(res, 'Valid amount is required', 400);
+
+    const employee = await prisma.employee.findUnique({ where: { id } });
+    if (!employee) return sendError(res, 'Employee not found', 404);
+
+    const entry = await prisma.employeeTransfer.upsert({
+      where: { employeeId_accountType: { employeeId: id, accountType } },
+      update: { amount: amt, label: TRANSFER_LABELS[accountType] },
+      create: { employeeId: id, accountType, label: TRANSFER_LABELS[accountType], amount: amt },
+    });
+
+    return sendSuccess(res, entry, 'Transfer saved');
+  } catch (error: any) {
+    console.error('Upsert transfer error:', error);
+    return sendError(res, 'Failed to save transfer', 500);
+  }
+};
+
+export const deleteEmployeeTransfer = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, transferId } = req.params;
+    const entry = await prisma.employeeTransfer.findFirst({ where: { id: transferId, employeeId: id } });
+    if (!entry) return sendError(res, 'Transfer entry not found', 404);
+    await prisma.employeeTransfer.delete({ where: { id: transferId } });
+    return sendSuccess(res, null, 'Transfer deleted');
+  } catch (error: any) {
+    return sendError(res, 'Failed to delete transfer', 500);
+  }
+};

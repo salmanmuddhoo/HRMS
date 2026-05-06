@@ -59,6 +59,7 @@ export const getAllPayrolls = async (req: AuthRequest, res: Response) => {
         },
         adjustments: { orderBy: { createdAt: 'asc' } },
         compensations: { orderBy: { createdAt: 'asc' } },
+        transfers: { orderBy: { createdAt: 'asc' } },
       },
       orderBy: [{ year: 'desc' }, { month: 'desc' }],
     });
@@ -90,6 +91,7 @@ export const getPayrollById = async (req: AuthRequest, res: Response) => {
         },
         adjustments: { orderBy: { createdAt: 'asc' } },
         compensations: { orderBy: { createdAt: 'asc' } },
+        transfers: { orderBy: { createdAt: 'asc' } },
       },
     });
 
@@ -141,10 +143,13 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
       );
     }
 
-    // Get all active employees with their compensation history
+    // Get all active employees with their compensation and transfer data
     const employees = await prisma.employee.findMany({
       where: { status: 'ACTIVE' },
-      include: { compensations: { orderBy: { createdAt: 'asc' } } },
+      include: {
+        compensations: { orderBy: { createdAt: 'asc' } },
+        transfers:     { orderBy: { createdAt: 'asc' } },
+      },
     });
 
     if (employees.length === 0) {
@@ -200,12 +205,13 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
 
       // Sum all compensation entries for this employee
       const compensationTotal = employee.compensations.reduce((s, c) => s + Number(c.amount), 0);
+      const transferTotal = employee.transfers.reduce((s, t) => s + Number(t.amount), 0);
       const grossSalary =
         baseSal +
         Number(employee.travellingAllowance) +
         Number(employee.otherAllowances) +
         compensationTotal;
-      const totalDeductions = travellingDeduction + csg + nsf;
+      const totalDeductions = travellingDeduction + csg + nsf + transferTotal;
       const netSalary = grossSalary - totalDeductions;
 
       payrollRecords.push({
@@ -231,7 +237,7 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
     // Create payroll records
     await prisma.payroll.createMany({ data: payrollRecords });
 
-    // Fetch created payrolls to get their IDs, then snapshot compensation entries
+    // Fetch created payrolls to get their IDs, then snapshot compensation + transfer entries
     const payrolls = await prisma.payroll.findMany({
       where: { month: monthNum, year: yearNum },
       include: {
@@ -243,6 +249,7 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
             lastName: true,
             department: true,
             compensations: { orderBy: { createdAt: 'asc' } },
+            transfers:     { orderBy: { createdAt: 'asc' } },
           },
         },
       },
@@ -258,6 +265,19 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
     );
     if (compensationSnapshots.length > 0) {
       await prisma.payrollCompensation.createMany({ data: compensationSnapshots });
+    }
+
+    // Create PayrollTransfer snapshots
+    const transferSnapshots = payrolls.flatMap((pr) =>
+      pr.employee.transfers.map((t) => ({
+        payrollId: pr.id,
+        accountType: t.accountType,
+        label: t.label,
+        amount: Number(t.amount),
+      }))
+    );
+    if (transferSnapshots.length > 0) {
+      await prisma.payrollTransfer.createMany({ data: transferSnapshots });
     }
 
     // Create CSG and NSF adjustment records for each payroll
@@ -491,7 +511,10 @@ export const reprocessPayroll = async (req: AuthRequest, res: Response) => {
       where: { id },
       include: {
         employee: {
-          include: { compensations: { orderBy: { createdAt: 'asc' } } },
+          include: {
+            compensations: { orderBy: { createdAt: 'asc' } },
+            transfers: { orderBy: { createdAt: 'asc' } },
+          },
         },
       },
     });
@@ -525,11 +548,12 @@ export const reprocessPayroll = async (req: AuthRequest, res: Response) => {
     const ta = Number(emp.travellingAllowance);
     const oa = Number(emp.otherAllowances);
     const compensationTotal = emp.compensations.reduce((s, c) => s + Number(c.amount), 0);
+    const transferTotal = emp.transfers.reduce((t, r) => t + Number(r.amount), 0);
     const travellingDeduction = (ta / workingDays) * absenceDays;
     const csg = calcCSG(baseSal);
     const nsf = calcNSF(baseSal);
     const grossSalary = baseSal + ta + oa + compensationTotal;
-    const totalDeductions = travellingDeduction + csg + nsf;
+    const totalDeductions = travellingDeduction + csg + nsf + transferTotal;
     const netSalary = grossSalary - totalDeductions;
 
     const updatedPayroll = await prisma.$transaction(async (tx) => {
@@ -541,6 +565,16 @@ export const reprocessPayroll = async (req: AuthRequest, res: Response) => {
           { payrollId: id, label: 'NSF', type: 'DEDUCTION', amount: nsf },
         ],
       });
+
+      // Replace transfer snapshot
+      await tx.payrollTransfer.deleteMany({ where: { payrollId: id } });
+      if (emp.transfers.length > 0) {
+        await tx.payrollTransfer.createMany({
+          data: emp.transfers.map(t => ({
+            payrollId: id, accountType: t.accountType, label: t.label, amount: Number(t.amount),
+          })),
+        });
+      }
 
       // Replace compensation snapshot
       await tx.payrollCompensation.deleteMany({ where: { payrollId: id } });
@@ -661,12 +695,14 @@ export const updatePayroll = async (req: AuthRequest, res: Response) => {
           grossSalary,
           netSalary,
           remarks,
-          // Reset REJECTED back to DRAFT so secretary can re-review after corrections
-          ...(payroll.status === 'REJECTED' ? {
+          // Reset REJECTED or APPROVED back to DRAFT so the secretary re-reviews
+          ...(payroll.status === 'REJECTED' || payroll.status === 'APPROVED' ? {
             status: 'DRAFT',
             rejectionReason: null,
             rejectedBy: null,
             rejectedAt: null,
+            approvedBy: null,
+            approvedAt: null,
           } : {}),
         },
         include: {

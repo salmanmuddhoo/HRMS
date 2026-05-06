@@ -52,6 +52,7 @@ export const getEmployeeById = async (req: AuthRequest, res: Response) => {
       include: {
         user: { select: { email: true, role: true } },
         compensations: { orderBy: { createdAt: 'asc' } },
+        transfers: { orderBy: { createdAt: 'asc' } },
       },
     });
 

@@ -280,25 +280,38 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
       });
 
       if (leave.isHalfDay) {
-        await tx.attendance.upsert({
+        const existing = await tx.attendance.findUnique({
           where: { employeeId_date: { employeeId: leave.employeeId, date: leave.startDate } },
-          create: {
-            employeeId: leave.employeeId,
-            date: leave.startDate,
-            isPresent: true,
-            isLeave: true,
-            leaveType: leave.leaveType,
-            isHalfDay: true,
-            halfDayPeriod: leave.halfDayPeriod,
-            isAbsence: false,
-          },
-          update: {
-            isLeave: true,
-            leaveType: leave.leaveType,
-            isHalfDay: true,
-            halfDayPeriod: leave.halfDayPeriod,
-          },
         });
+        if (existing?.isHalfDay && existing.halfDayPeriod !== leave.halfDayPeriod) {
+          // Other half already has a leave — just store the second type
+          await tx.attendance.update({
+            where: { employeeId_date: { employeeId: leave.employeeId, date: leave.startDate } },
+            data: { secondHalfLeaveType: leave.leaveType },
+          });
+        } else {
+          await tx.attendance.upsert({
+            where: { employeeId_date: { employeeId: leave.employeeId, date: leave.startDate } },
+            create: {
+              employeeId: leave.employeeId,
+              date: leave.startDate,
+              isPresent: true,
+              isLeave: true,
+              leaveType: leave.leaveType,
+              isHalfDay: true,
+              halfDayPeriod: leave.halfDayPeriod,
+              secondHalfLeaveType: null,
+              isAbsence: false,
+            },
+            update: {
+              isLeave: true,
+              leaveType: leave.leaveType,
+              isHalfDay: true,
+              halfDayPeriod: leave.halfDayPeriod,
+              secondHalfLeaveType: null,
+            },
+          });
+        }
       } else {
         const current = new Date(leave.startDate);
         const attendanceRecords = [];
@@ -498,25 +511,38 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
       });
 
       if (isHalfDay) {
-        await tx.attendance.upsert({
+        const existingAtt = await tx.attendance.findUnique({
           where: { employeeId_date: { employeeId, date: start } },
-          create: {
-            employeeId,
-            date: start,
-            isPresent: true,
-            isLeave: true,
-            leaveType,
-            isHalfDay: true,
-            halfDayPeriod: halfDayPeriod || 'MORNING',
-            isAbsence: false,
-          },
-          update: {
-            isLeave: true,
-            leaveType,
-            isHalfDay: true,
-            halfDayPeriod: halfDayPeriod || 'MORNING',
-          },
         });
+        const period = halfDayPeriod || 'MORNING';
+        if (existingAtt?.isHalfDay && existingAtt.halfDayPeriod !== period) {
+          await tx.attendance.update({
+            where: { employeeId_date: { employeeId, date: start } },
+            data: { secondHalfLeaveType: leaveType },
+          });
+        } else {
+          await tx.attendance.upsert({
+            where: { employeeId_date: { employeeId, date: start } },
+            create: {
+              employeeId,
+              date: start,
+              isPresent: true,
+              isLeave: true,
+              leaveType,
+              isHalfDay: true,
+              halfDayPeriod: period,
+              secondHalfLeaveType: null,
+              isAbsence: false,
+            },
+            update: {
+              isLeave: true,
+              leaveType,
+              isHalfDay: true,
+              halfDayPeriod: period,
+              secondHalfLeaveType: null,
+            },
+          });
+        }
       } else {
         const current = new Date(start);
         const attendanceRecords = [];

@@ -165,11 +165,10 @@ export const generatePayslipPDF = async (
       heading('Attendance Summary');
       y = doc.y;
       infoRow2('Working Days:', String(data.payroll.workingDays),
-               'Leaves Taken:', String(data.payroll.leaveDays), y);
+               'Leaves Taken:', String(data.payroll.leaveDays), y, 110);
       y += ROW_H;
       const annualBal = data.payroll.localLeaveBalance != null ? `${data.payroll.localLeaveBalance} days` : 'N/A';
       const sickBal   = data.payroll.sickLeaveBalance  != null ? `${data.payroll.sickLeaveBalance} days`  : 'N/A';
-      // Use wider label column (110pt) to accommodate "Ann. Leave Bal.:"
       infoRow2('Ann. Leave Bal.:', annualBal, 'Sick Leave Bal.:', sickBal, y, 110);
       y += ROW_H + 8;
       doc.y = y;

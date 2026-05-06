@@ -63,6 +63,9 @@ const Payroll: React.FC = () => {
   const [adjustments, setAdjustments] = useState<PayrollAdjustment[]>([]);
   const [saving, setSaving] = useState(false);
 
+  const [approvingAll, setApprovingAll] = useState(false);
+  const [lockingAll, setLockingAll] = useState(false);
+
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -183,8 +186,9 @@ const Payroll: React.FC = () => {
 
     if (!window.confirm(`Approve all ${draftPayrolls.length} draft payrolls?`)) return;
 
+    setApprovingAll(true);
+    setError('');
     try {
-      setError('');
       for (const payroll of draftPayrolls) {
         await api.approvePayroll(payroll.id);
       }
@@ -193,6 +197,8 @@ const Payroll: React.FC = () => {
     } catch (error: any) {
       setError(error.response?.data?.message || 'Failed to approve payrolls');
       fetchPayrolls();
+    } finally {
+      setApprovingAll(false);
     }
   };
 
@@ -205,8 +211,9 @@ const Payroll: React.FC = () => {
 
     if (!window.confirm(`Lock all ${approvedPayrolls.length} approved payrolls?`)) return;
 
+    setLockingAll(true);
+    setError('');
     try {
-      setError('');
       for (const payroll of approvedPayrolls) {
         await api.lockPayroll(payroll.id);
       }
@@ -215,6 +222,8 @@ const Payroll: React.FC = () => {
     } catch (error: any) {
       setError(error.response?.data?.message || 'Failed to lock payrolls');
       fetchPayrolls();
+    } finally {
+      setLockingAll(false);
     }
   };
 
@@ -375,17 +384,31 @@ const Payroll: React.FC = () => {
             {canApprovePayroll && payrolls.length > 0 && draftCount > 0 && (
               <button
                 onClick={handleApproveAll}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                disabled={approvingAll}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
               >
-                Approve All ({draftCount})
+                {approvingAll && (
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                )}
+                {approvingAll ? 'Approving...' : `Approve All (${draftCount})`}
               </button>
             )}
             {canProcessPayroll && payrolls.length > 0 && approvedCount > 0 && (
               <button
                 onClick={handleLockAll}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+                disabled={lockingAll}
+                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 disabled:opacity-50 flex items-center gap-2"
               >
-                Lock All ({approvedCount})
+                {lockingAll && (
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                )}
+                {lockingAll ? 'Locking...' : `Lock All (${approvedCount})`}
               </button>
             )}
             {isAdmin && payrolls.length > 0 && (
@@ -702,6 +725,40 @@ const Payroll: React.FC = () => {
                     className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 border p-2"
                     placeholder="Optional remarks..." />
                 </div>
+
+                {/* Live Totals Preview */}
+                {(() => {
+                  const liveBase = parseFloat(editData.baseSalary) || 0;
+                  const liveTA = parseFloat(editData.travellingAllowance) || 0;
+                  const liveOA = parseFloat(editData.otherAllowances) || 0;
+                  const liveComps = (selectedPayroll.compensations || []).reduce((s, c) => s + Number(c.amount), 0);
+                  const liveAdditions = adjustments.filter(a => a.type === 'ADDITION').reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
+                  const liveTotalEarnings = liveBase + liveTA + liveOA + liveComps + liveAdditions;
+                  const liveCSG = liveBase <= 50000 ? liveBase * 0.015 : liveBase * 0.03;
+                  const liveNSF = liveBase >= 21435 ? 21435 * 0.01 : liveBase * 0.01;
+                  const liveTravelDed = Number(selectedPayroll.travellingDeduction || 0);
+                  const liveUserDeds = adjustments.filter(a => a.type === 'DEDUCTION').reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
+                  const liveTotalDeductions = liveTravelDed + liveCSG + liveNSF + liveUserDeds;
+                  const liveNet = liveTotalEarnings - liveTotalDeductions;
+                  return (
+                    <div className="mb-4 p-3 bg-gray-900 text-white rounded-md text-sm">
+                      <p className="text-xs text-gray-400 mb-2 font-semibold uppercase tracking-wide">Live Preview</p>
+                      <div className="flex justify-between mb-1">
+                        <span className="text-gray-300">Total Earnings</span>
+                        <span className="font-semibold text-green-400">{formatCurrency(liveTotalEarnings)}</span>
+                      </div>
+                      <div className="flex justify-between mb-1">
+                        <span className="text-gray-300">Total Deductions</span>
+                        <span className="font-semibold text-red-400">{formatCurrency(liveTotalDeductions)}</span>
+                      </div>
+                      <div className="border-t border-gray-600 mt-2 pt-2 flex justify-between">
+                        <span className="font-semibold">Net Salary</span>
+                        <span className="font-bold text-lg text-white">{formatCurrency(liveNet)}</span>
+                      </div>
+                      <p className="text-[10px] text-gray-500 mt-1">CSG/NSF estimated from new base salary. Exact values calculated on save.</p>
+                    </div>
+                  );
+                })()}
 
                 <div className="flex justify-end gap-2">
                   <button type="button" onClick={() => setShowModal(false)}

@@ -495,9 +495,7 @@ const EmployeeForm: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Role *{isEdit && !isAdmin && <span className="ml-1 text-xs text-gray-400">(admin only)</span>}
-              </label>
+              <label className="block text-sm font-medium text-gray-700">Role *</label>
               <select
                 name="role"
                 value={formData.role}

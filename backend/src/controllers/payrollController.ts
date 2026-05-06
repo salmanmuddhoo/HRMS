@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import prisma from '../config/database';
 import { sendSuccess, sendError } from '../utils/response';
-import { getPayrollCycleDateRange } from '../utils/date';
+import { getPayrollCycleDateRange, countPayrollWorkingDays } from '../utils/date';
 import emailService from '../services/emailService';
 
 // ── Statutory contribution calculators ─────────────────────────
@@ -151,21 +151,22 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
       return sendError(res, 'No active employees found', 400);
     }
 
-    // Get working days configuration
-    const workingDaysConfig = await prisma.systemConfig.findUnique({
-      where: { key: 'WORKING_DAYS_PER_MONTH' },
-    });
-
-    const workingDays = workingDaysConfig
-      ? parseInt(workingDaysConfig.value)
-      : 22;
-
     // Determine attendance date range based on payroll cycle
     const cycleStartDayConfig = await prisma.systemConfig.findUnique({
       where: { key: 'PAYROLL_CYCLE_START_DAY' },
     });
     const cycleStartDay = cycleStartDayConfig ? parseInt(cycleStartDayConfig.value) : 1;
     const { startDate: cycleStart, endDate: cycleEnd } = getPayrollCycleDateRange(monthNum, yearNum, cycleStartDay);
+
+    // Fetch public holidays in the cycle period to exclude them from working days
+    const holidayRecords = await prisma.publicHoliday.findMany({
+      where: { date: { gte: cycleStart, lte: cycleEnd } },
+      select: { date: true },
+    });
+    const holidayDates = holidayRecords.map(h => new Date(h.date));
+
+    // Working days = Mon–Sat in the cycle period, minus public holidays
+    const workingDays = countPayrollWorkingDays(cycleStart, cycleEnd, holidayDates);
 
     const payrollRecords = [];
     // Track CSG/NSF per employeeId for adjustment creation after payrolls are saved
@@ -479,6 +480,118 @@ export const rejectPayroll = async (req: AuthRequest, res: Response) => {
   } catch (error: any) {
     console.error('Reject payroll error:', error);
     return sendError(res, 'Failed to reject payroll', 500);
+  }
+};
+
+export const reprocessPayroll = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const payroll = await prisma.payroll.findUnique({
+      where: { id },
+      include: {
+        employee: {
+          include: { compensations: { orderBy: { createdAt: 'asc' } } },
+        },
+      },
+    });
+
+    if (!payroll) return sendError(res, 'Payroll not found', 404);
+    if (payroll.status !== 'REJECTED') {
+      return sendError(res, 'Only rejected payrolls can be reprocessed', 400);
+    }
+
+    const cycleStartDayConfig = await prisma.systemConfig.findUnique({ where: { key: 'PAYROLL_CYCLE_START_DAY' } });
+    const cycleStartDay = cycleStartDayConfig ? parseInt(cycleStartDayConfig.value) : 1;
+    const { startDate: cycleStart, endDate: cycleEnd } = getPayrollCycleDateRange(payroll.month, payroll.year, cycleStartDay);
+
+    const holidayRecords = await prisma.publicHoliday.findMany({
+      where: { date: { gte: cycleStart, lte: cycleEnd } },
+      select: { date: true },
+    });
+    const holidayDates = holidayRecords.map(h => new Date(h.date));
+    const workingDays = countPayrollWorkingDays(cycleStart, cycleEnd, holidayDates);
+
+    const attendance = await prisma.attendance.findMany({
+      where: { employeeId: payroll.employeeId, date: { gte: cycleStart, lte: cycleEnd } },
+    });
+
+    const presentDays = attendance.filter(a => a.isPresent).length;
+    const leaveDays   = attendance.filter(a => a.isLeave).length;
+    const absenceDays = attendance.filter(a => a.isAbsence).length;
+
+    const emp = payroll.employee;
+    const baseSal = Number(emp.baseSalary);
+    const ta = Number(emp.travellingAllowance);
+    const oa = Number(emp.otherAllowances);
+    const compensationTotal = emp.compensations.reduce((s, c) => s + Number(c.amount), 0);
+    const travellingDeduction = (ta / workingDays) * absenceDays;
+    const csg = calcCSG(baseSal);
+    const nsf = calcNSF(baseSal);
+    const grossSalary = baseSal + ta + oa + compensationTotal;
+    const totalDeductions = travellingDeduction + csg + nsf;
+    const netSalary = grossSalary - totalDeductions;
+
+    const updatedPayroll = await prisma.$transaction(async (tx) => {
+      // Replace all adjustments with fresh CSG/NSF
+      await tx.payrollAdjustment.deleteMany({ where: { payrollId: id } });
+      await tx.payrollAdjustment.createMany({
+        data: [
+          { payrollId: id, label: 'CSG', type: 'DEDUCTION', amount: csg },
+          { payrollId: id, label: 'NSF', type: 'DEDUCTION', amount: nsf },
+        ],
+      });
+
+      // Replace compensation snapshot
+      await tx.payrollCompensation.deleteMany({ where: { payrollId: id } });
+      if (emp.compensations.length > 0) {
+        await tx.payrollCompensation.createMany({
+          data: emp.compensations.map(c => ({ payrollId: id, label: c.label, amount: Number(c.amount) })),
+        });
+      }
+
+      return tx.payroll.update({
+        where: { id },
+        data: {
+          workingDays,
+          presentDays,
+          leaveDays,
+          absenceDays,
+          baseSalary: baseSal,
+          travellingAllowance: ta,
+          otherAllowances: oa,
+          compensation: compensationTotal,
+          travellingDeduction,
+          totalDeductions,
+          grossSalary,
+          netSalary,
+          status: 'DRAFT',
+          rejectionReason: null,
+          rejectedBy: null,
+          rejectedAt: null,
+        },
+        include: {
+          employee: { select: { id: true, employeeId: true, firstName: true, lastName: true, department: true } },
+          adjustments: { orderBy: { createdAt: 'asc' } },
+          compensations: { orderBy: { createdAt: 'asc' } },
+        },
+      });
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.userId,
+        action: 'REPROCESS_PAYROLL',
+        entity: 'PAYROLL',
+        entityId: id,
+        changes: JSON.stringify({ month: payroll.month, year: payroll.year }),
+      },
+    });
+
+    return sendSuccess(res, updatedPayroll, 'Payroll reprocessed successfully');
+  } catch (error: any) {
+    console.error('Reprocess payroll error:', error);
+    return sendError(res, 'Failed to reprocess payroll', 500);
   }
 };
 

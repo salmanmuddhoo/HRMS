@@ -366,10 +366,16 @@ const Payroll: React.FC = () => {
 
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i);
 
+  // Employer contribution helpers
+  const calcEmployerCSG = (base: number) => base <= 50000 ? base * 0.03 : base * 0.06;
+  const calcEmployerNSF = (base: number) => base * 0.025;
+
   // Summary calculations
   const totalGross = payrolls.reduce((sum, p) => sum + Number(p.grossSalary), 0);
   const totalDeductions = payrolls.reduce((sum, p) => sum + Number(p.totalDeductions), 0);
   const totalNet = payrolls.reduce((sum, p) => sum + Number(p.netSalary), 0);
+  const totalEmployerCSG = payrolls.reduce((sum, p) => sum + calcEmployerCSG(Number(p.baseSalary)), 0);
+  const totalEmployerNSF = payrolls.reduce((sum, p) => sum + calcEmployerNSF(Number(p.baseSalary)), 0);
   const draftCount = payrolls.filter(p => p.status === 'DRAFT').length;
   const approvedCount = payrolls.filter(p => p.status === 'APPROVED').length;
   const rejectedCount = payrolls.filter(p => p.status === 'REJECTED').length;
@@ -497,13 +503,21 @@ const Payroll: React.FC = () => {
             </div>
             <div className="bg-white p-4 rounded-lg shadow">
               <div className="text-sm text-gray-500">Status</div>
-              <div className="flex gap-2 mt-1">
+              <div className="flex gap-2 mt-1 flex-wrap">
                 {draftCount > 0 && <span className={getStatusBadge('DRAFT')}>{draftCount} Draft</span>}
                 {approvedCount > 0 && <span className={getStatusBadge('APPROVED')}>{approvedCount} Approved</span>}
                 {rejectedCount > 0 && <span className={getStatusBadge('REJECTED')}>{rejectedCount} Rejected</span>}
                 {lockedCount > 0 && <span className={getStatusBadge('LOCKED')}>{lockedCount} Locked</span>}
               </div>
             </div>
+            {canProcessPayroll && (
+              <div className="bg-orange-50 border border-orange-200 p-4 rounded-lg shadow col-span-2 md:col-span-1">
+                <div className="text-sm text-orange-700 font-medium mb-1">Employer Contributions</div>
+                <div className="text-xs text-orange-600 flex justify-between"><span>CSG:</span><span className="font-semibold">{formatCurrency(totalEmployerCSG)}</span></div>
+                <div className="text-xs text-orange-600 flex justify-between"><span>NSF:</span><span className="font-semibold">{formatCurrency(totalEmployerNSF)}</span></div>
+                <div className="text-xs text-orange-800 font-bold flex justify-between border-t border-orange-200 mt-1 pt-1"><span>Total:</span><span>{formatCurrency(totalEmployerCSG + totalEmployerNSF)}</span></div>
+              </div>
+            )}
           </div>
         )}
 
@@ -615,6 +629,15 @@ const Payroll: React.FC = () => {
                                 className="text-primary-600 hover:text-primary-900 text-sm"
                               >
                                 Edit
+                              </button>
+                            )}
+                            {/* Treasurer: View-only for locked */}
+                            {canProcessPayroll && payroll.status === 'LOCKED' && (
+                              <button
+                                onClick={() => { setViewPayroll(payroll); setShowViewModal(true); }}
+                                className="text-gray-500 hover:text-gray-700 text-sm"
+                              >
+                                View
                               </button>
                             )}
                             {/* Secretary: Approve / Reject only on DRAFT */}
@@ -770,6 +793,23 @@ const Payroll: React.FC = () => {
               <div className="bg-gray-900 text-white rounded-md p-3 flex justify-between items-center mb-4">
                 <span className="font-semibold">Net Salary</span>
                 <span className="text-xl font-bold">{formatCurrency(Number(viewPayroll.netSalary))}</span>
+              </div>
+
+              {/* Employer Contributions (not part of employee net salary) */}
+              <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-md text-sm">
+                <p className="text-xs font-semibold text-orange-700 mb-2 uppercase tracking-wide">Employer Contributions (not deducted from employee)</p>
+                <div className="flex justify-between text-orange-800">
+                  <span>Employer CSG ({Number(viewPayroll.baseSalary) <= 50000 ? '3%' : '6%'})</span>
+                  <span>{formatCurrency(calcEmployerCSG(Number(viewPayroll.baseSalary)))}</span>
+                </div>
+                <div className="flex justify-between text-orange-800 mt-1">
+                  <span>Employer NSF (2.5%)</span>
+                  <span>{formatCurrency(calcEmployerNSF(Number(viewPayroll.baseSalary)))}</span>
+                </div>
+                <div className="flex justify-between text-orange-900 font-semibold mt-2 border-t border-orange-200 pt-2">
+                  <span>Total Employer Contribution</span>
+                  <span>{formatCurrency(calcEmployerCSG(Number(viewPayroll.baseSalary)) + calcEmployerNSF(Number(viewPayroll.baseSalary)))}</span>
+                </div>
               </div>
 
               {/* Actions — only for DRAFT */}
@@ -1014,22 +1054,39 @@ const Payroll: React.FC = () => {
                   const liveTotalDeductions = liveTravelDed + liveCSG + liveNSF + liveUserDeds + liveTransfers;
                   const liveNet = liveTotalEarnings - liveTotalDeductions;
                   return (
-                    <div className="mb-4 p-3 bg-gray-900 text-white rounded-md text-sm">
-                      <p className="text-xs text-gray-400 mb-2 font-semibold uppercase tracking-wide">Live Preview</p>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-gray-300">Total Earnings</span>
-                        <span className="font-semibold text-green-400">{formatCurrency(liveTotalEarnings)}</span>
+                    <>
+                      <div className="mb-4 p-3 bg-gray-900 text-white rounded-md text-sm">
+                        <p className="text-xs text-gray-400 mb-2 font-semibold uppercase tracking-wide">Live Preview</p>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-gray-300">Total Earnings</span>
+                          <span className="font-semibold text-green-400">{formatCurrency(liveTotalEarnings)}</span>
+                        </div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-gray-300">Total Deductions</span>
+                          <span className="font-semibold text-red-400">{formatCurrency(liveTotalDeductions)}</span>
+                        </div>
+                        <div className="border-t border-gray-600 mt-2 pt-2 flex justify-between">
+                          <span className="font-semibold">Net Salary</span>
+                          <span className="font-bold text-lg text-white">{formatCurrency(liveNet)}</span>
+                        </div>
+                        <p className="text-[10px] text-gray-500 mt-1">CSG/NSF estimated from new base salary. Exact values calculated on save.</p>
                       </div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-gray-300">Total Deductions</span>
-                        <span className="font-semibold text-red-400">{formatCurrency(liveTotalDeductions)}</span>
+                      <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-md text-sm">
+                        <p className="text-xs font-semibold text-orange-700 mb-2 uppercase tracking-wide">Employer Contributions (not deducted from employee)</p>
+                        <div className="flex justify-between text-orange-800">
+                          <span>Employer CSG ({liveBase <= 50000 ? '3%' : '6%'})</span>
+                          <span>{formatCurrency(calcEmployerCSG(liveBase))}</span>
+                        </div>
+                        <div className="flex justify-between text-orange-800 mt-1">
+                          <span>Employer NSF (2.5%)</span>
+                          <span>{formatCurrency(calcEmployerNSF(liveBase))}</span>
+                        </div>
+                        <div className="flex justify-between text-orange-900 font-semibold mt-2 border-t border-orange-200 pt-2">
+                          <span>Total Employer Contribution</span>
+                          <span>{formatCurrency(calcEmployerCSG(liveBase) + calcEmployerNSF(liveBase))}</span>
+                        </div>
                       </div>
-                      <div className="border-t border-gray-600 mt-2 pt-2 flex justify-between">
-                        <span className="font-semibold">Net Salary</span>
-                        <span className="font-bold text-lg text-white">{formatCurrency(liveNet)}</span>
-                      </div>
-                      <p className="text-[10px] text-gray-500 mt-1">CSG/NSF estimated from new base salary. Exact values calculated on save.</p>
-                    </div>
+                    </>
                   );
                 })()}
 

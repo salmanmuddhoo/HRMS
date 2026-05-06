@@ -368,7 +368,7 @@ const Payroll: React.FC = () => {
 
   // Employer contribution helpers
   const calcEmployerCSG = (base: number) => base <= 50000 ? base * 0.03 : base * 0.06;
-  const calcEmployerNSF = (base: number) => base * 0.025;
+  const calcEmployerNSF = (base: number) => Math.min(base, 28570) * 0.025;
 
   // Summary calculations
   const totalGross = payrolls.reduce((sum, p) => sum + Number(p.grossSalary), 0);
@@ -1047,7 +1047,7 @@ const Payroll: React.FC = () => {
                   const liveAdditions = adjustments.filter(a => a.type === 'ADDITION').reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
                   const liveTotalEarnings = liveBase + liveTA + liveOA + liveComps + liveAdditions;
                   const liveCSG = liveBase <= 50000 ? liveBase * 0.015 : liveBase * 0.03;
-                  const liveNSF = liveBase >= 21435 ? 21435 * 0.01 : liveBase * 0.01;
+                  const liveNSF = liveBase >= 28570 ? 28570 * 0.01 : liveBase * 0.01;
                   const liveTravelDed = Number(selectedPayroll.travellingDeduction || 0);
                   const liveUserDeds = adjustments.filter(a => a.type === 'DEDUCTION').reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
                   const liveTransfers = (selectedPayroll.transfers || []).reduce((s, t) => s + Number(t.amount), 0);

@@ -138,8 +138,8 @@ const Reports: React.FC = () => {
     month: new Date().getMonth() + 1,
     year: new Date().getFullYear(),
     department: '',
-    status: '',
   });
+  const [selectedTransferAccount, setSelectedTransferAccount] = useState<string>('');
 
   const departments = ['HR', 'IT', 'Finance', 'Operations', 'Sales', 'Marketing'];
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i);
@@ -206,7 +206,6 @@ const Reports: React.FC = () => {
       if (payrollFilters.month) params.month = payrollFilters.month;
       if (payrollFilters.year) params.year = payrollFilters.year;
       if (payrollFilters.department) params.department = payrollFilters.department;
-      if (payrollFilters.status) params.status = payrollFilters.status;
 
       const response = await api.getPayrollReport(params);
       if ((response as any).success) {
@@ -612,7 +611,7 @@ const Reports: React.FC = () => {
       {/* Payroll Filters */}
       <div className="bg-white p-4 rounded-lg shadow mb-6">
         <h3 className="text-sm font-medium text-gray-700 mb-3">Filters</h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs text-gray-500 mb-1">Month</label>
             <select
@@ -648,19 +647,6 @@ const Reports: React.FC = () => {
               {departments.map((d) => (
                 <option key={d} value={d}>{d}</option>
               ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Status</label>
-            <select
-              value={payrollFilters.status}
-              onChange={(e) => setPayrollFilters({ ...payrollFilters, status: e.target.value })}
-              className="w-full rounded-md border-gray-300 shadow-sm border p-2 text-sm"
-            >
-              <option value="">All Status</option>
-              <option value="DRAFT">Draft</option>
-              <option value="APPROVED">Approved</option>
-              <option value="LOCKED">Locked</option>
             </select>
           </div>
         </div>
@@ -772,6 +758,93 @@ const Reports: React.FC = () => {
             </div>
           )}
 
+          {/* Transfer Employee Breakdown */}
+          <div className="bg-white p-4 rounded-lg shadow mb-6">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Transfer Details by Account</h3>
+            <p className="text-xs text-gray-500 mb-3">Select an account type to see which employees made transfers to it this period.</p>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {[
+                { key: 'SHARES', label: 'Shares A/C' },
+                { key: 'MSA', label: 'MSA' },
+                { key: 'HSA', label: 'HSA' },
+                { key: 'SHARIAH', label: 'Shariah Compliant Financing' },
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setSelectedTransferAccount(prev => prev === key ? '' : key)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                    selectedTransferAccount === key
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {selectedTransferAccount ? (() => {
+              const accountLabels: Record<string, string> = {
+                SHARES: 'Shares A/C',
+                MSA: 'MSA',
+                HSA: 'HSA',
+                SHARIAH: 'Shariah Compliant Financing',
+              };
+              const filtered = payrollData.payrolls.filter(p =>
+                p.transfers?.some(t => t.accountType === selectedTransferAccount)
+              );
+              if (filtered.length === 0) {
+                return (
+                  <div className="text-sm text-gray-500 py-4 text-center">
+                    No employees made transfers to {accountLabels[selectedTransferAccount]} for this period.
+                  </div>
+                );
+              }
+              const total = filtered.reduce((sum, p) => {
+                const t = p.transfers?.find(t => t.accountType === selectedTransferAccount);
+                return sum + (t ? Number(t.amount) : 0);
+              }, 0);
+              return (
+                <div>
+                  <div className="text-xs text-gray-500 mb-2">
+                    {filtered.length} employee{filtered.length !== 1 ? 's' : ''} · Total: <span className="font-semibold text-blue-700">{formatCurrency(total)}</span>
+                  </div>
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {filtered.map(p => {
+                        const t = p.transfers?.find(t => t.accountType === selectedTransferAccount);
+                        return (
+                          <tr key={p.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-2 whitespace-nowrap">
+                              <div className="font-medium text-gray-900">{p.employee.firstName} {p.employee.lastName}</div>
+                              <div className="text-xs text-gray-500">{p.employee.employeeId}</div>
+                            </td>
+                            <td className="px-4 py-2 whitespace-nowrap text-gray-600">{p.employee.department}</td>
+                            <td className="px-4 py-2 whitespace-nowrap text-gray-600">
+                              {months.find(m => m.value === p.month)?.label} {p.year}
+                            </td>
+                            <td className="px-4 py-2 whitespace-nowrap text-right font-semibold text-blue-700">
+                              {t ? formatCurrency(Number(t.amount)) : formatCurrency(0)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })() : (
+              <div className="text-sm text-gray-400 text-center py-4">Select an account above to view employee details.</div>
+            )}
+          </div>
+
           {/* Payroll Records Table */}
           <div className="bg-white shadow rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
@@ -784,7 +857,6 @@ const Reports: React.FC = () => {
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Allowances</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Deductions</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Salary</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -810,11 +882,6 @@ const Reports: React.FC = () => {
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-semibold text-green-700">
                         {formatCurrency(payroll.netSalary)}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-center">
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeClass(payroll.status)}`}>
-                          {payroll.status}
-                        </span>
                       </td>
                     </tr>
                   ))}

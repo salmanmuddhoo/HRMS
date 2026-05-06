@@ -100,6 +100,44 @@ class EmailService {
 
     if (error) console.error('[EmailService] Send failed:', error);
   }
+  async sendPayrollRejectionNotification(opts: {
+    to: string[];
+    employeeName: string;
+    month: string;
+    year: number;
+    rejectionReason: string;
+    secretaryName: string;
+  }): Promise<void> {
+    const client = this.getClient();
+    if (!client || opts.to.length === 0) return;
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+        <div style="background:#dc2626;padding:20px;border-radius:8px 8px 0 0;text-align:center;">
+          <h2 style="color:white;margin:0;">Payroll Rejected — Action Required</h2>
+        </div>
+        <div style="background:#f9f9f9;padding:24px;border:1px solid #eee;border-radius:0 0 8px 8px;">
+          <p style="font-size:16px;color:#333;">A payroll record has been rejected by the Secretary and requires changes:</p>
+          <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+            <tr><td style="padding:8px;color:#666;font-weight:bold;width:160px;">Employee</td><td style="padding:8px;color:#333;">${opts.employeeName}</td></tr>
+            <tr style="background:#fff;"><td style="padding:8px;color:#666;font-weight:bold;">Period</td><td style="padding:8px;color:#333;">${opts.month} ${opts.year}</td></tr>
+            <tr><td style="padding:8px;color:#666;font-weight:bold;">Rejected by</td><td style="padding:8px;color:#333;">${opts.secretaryName}</td></tr>
+            <tr style="background:#fff;"><td style="padding:8px;color:#666;font-weight:bold;">Reason</td><td style="padding:8px;color:#dc2626;">${opts.rejectionReason}</td></tr>
+          </table>
+          <p style="color:#666;font-size:13px;">Please log in to the HRMS system, correct the payroll for this employee, and resubmit for approval.</p>
+        </div>
+      </div>
+    `;
+
+    const { error } = await client.emails.send({
+      from: this.from,
+      to: opts.to,
+      subject: `Payroll Rejected: ${opts.employeeName} — ${opts.month} ${opts.year}`,
+      html,
+    });
+
+    if (error) console.error('[EmailService] Send failed:', error);
+  }
 }
 
 export default new EmailService();

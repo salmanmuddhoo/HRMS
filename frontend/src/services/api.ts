@@ -188,6 +188,10 @@ class ApiService {
     return this.request({ method: 'PUT', url: `/payroll/${id}/approve` });
   }
 
+  async rejectPayroll(id: string, rejectionReason: string) {
+    return this.request({ method: 'PUT', url: `/payroll/${id}/reject`, data: { rejectionReason } });
+  }
+
   async lockPayroll(id: string) {
     return this.request({ method: 'PUT', url: `/payroll/${id}/lock` });
   }

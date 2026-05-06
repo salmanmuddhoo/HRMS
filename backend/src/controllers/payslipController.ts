@@ -3,6 +3,11 @@ import { AuthRequest } from '../middleware/auth';
 import prisma from '../config/database';
 import { sendSuccess, sendError } from '../utils/response';
 import { generatePayslipPDF } from '../services/pdfService';
+import { getPayrollCycleDateRange } from '../utils/date';
+
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const payslipFilename = (employeeId: string, month: number, year: number) =>
+  `Payslip_${MONTH_NAMES[month - 1]}_${year}_${employeeId}.pdf`;
 import path from 'path';
 import fs from 'fs';
 
@@ -45,6 +50,28 @@ export const generatePayslip = async (req: AuthRequest, res: Response) => {
     const companyPhone = companyPhoneCfg?.value || process.env.COMPANY_PHONE || 'N/A';
     const companyEmail = companyEmailCfg?.value || process.env.COMPANY_EMAIL || 'N/A';
 
+    // Count annual vs sick leave days from attendance records for this payroll period
+    const cycleStartDayCfg = await prisma.systemConfig.findUnique({ where: { key: 'PAYROLL_CYCLE_START_DAY' } });
+    const cycleStartDay = cycleStartDayCfg ? parseInt(cycleStartDayCfg.value) : 1;
+    const { startDate: cycleStart, endDate: cycleEnd } = getPayrollCycleDateRange(payroll.month, payroll.year, cycleStartDay);
+    const attendanceRecords = await prisma.attendance.findMany({
+      where: { employeeId: payroll.employeeId, date: { gte: cycleStart, lte: cycleEnd } },
+      select: { isLeave: true, leaveType: true, isHalfDay: true, secondHalfLeaveType: true },
+    });
+    let localLeaveDays = 0;
+    let sickLeaveDays = 0;
+    for (const a of attendanceRecords) {
+      if (!a.isLeave) continue;
+      const primaryVal = a.isHalfDay ? 0.5 : 1;
+      if (a.leaveType === 'LOCAL') localLeaveDays += primaryVal;
+      else if (a.leaveType === 'SICK') sickLeaveDays += primaryVal;
+      // Second half (dual half-day)
+      if (a.isHalfDay && a.secondHalfLeaveType) {
+        if (a.secondHalfLeaveType === 'LOCAL') localLeaveDays += 0.5;
+        else if (a.secondHalfLeaveType === 'SICK') sickLeaveDays += 0.5;
+      }
+    }
+
     // Prepare payslip data
     const payslipData = {
       employee: {
@@ -63,6 +90,8 @@ export const generatePayslip = async (req: AuthRequest, res: Response) => {
         workingDays: payroll.workingDays,
         presentDays: payroll.presentDays,
         leaveDays: payroll.leaveDays,
+        localLeaveDays,
+        sickLeaveDays,
         absenceDays: payroll.absenceDays,
         baseSalary: Number(payroll.baseSalary),
         travellingAllowance: Number(payroll.travellingAllowance),
@@ -94,7 +123,7 @@ export const generatePayslip = async (req: AuthRequest, res: Response) => {
     // Generate PDF — use /tmp on serverless (Vercel); uploads/ on self-hosted
     const uploadDir = process.env.VERCEL ? '/tmp' : (process.env.UPLOAD_DIR || 'uploads');
     const payslipsDir = path.join(uploadDir, 'payslips');
-    const filename = `Payslip_${payroll.employee.employeeId}.pdf`;
+    const filename = payslipFilename(payroll.employee.employeeId, payroll.month, payroll.year);
     const pdfPath = path.join(payslipsDir, filename);
 
     await generatePayslipPDF(payslipData, pdfPath);
@@ -166,10 +195,27 @@ export const downloadPayslip = async (req: AuthRequest, res: Response) => {
         prisma.systemConfig.findUnique({ where: { key: 'COMPANY_EMAIL' } }),
       ]);
       const uploadDir = process.env.VERCEL ? '/tmp' : (process.env.UPLOAD_DIR || 'uploads');
-      const regeneratedPath = path.join(uploadDir, 'payslips', path.basename(payslip.pdfPath || `Payslip_${emp.employeeId}.pdf`));
+      const regeneratedPath = path.join(uploadDir, 'payslips', path.basename(payslip.pdfPath || payslipFilename(emp.employeeId, pr.month, pr.year)));
+      // Recompute local/sick leave breakdown for regeneration
+      const rCycleStartDayCfg = await prisma.systemConfig.findUnique({ where: { key: 'PAYROLL_CYCLE_START_DAY' } });
+      const rCycleStartDay = rCycleStartDayCfg ? parseInt(rCycleStartDayCfg.value) : 1;
+      const { startDate: rCycleStart, endDate: rCycleEnd } = getPayrollCycleDateRange(pr.month, pr.year, rCycleStartDay);
+      const rAttendance = await prisma.attendance.findMany({
+        where: { employeeId: pr.employeeId, date: { gte: rCycleStart, lte: rCycleEnd } },
+        select: { isLeave: true, leaveType: true, isHalfDay: true, secondHalfLeaveType: true },
+      });
+      let rLocalDays = 0; let rSickDays = 0;
+      for (const a of rAttendance) {
+        if (!a.isLeave) continue;
+        const v = a.isHalfDay ? 0.5 : 1;
+        if (a.leaveType === 'LOCAL') rLocalDays += v; else if (a.leaveType === 'SICK') rSickDays += v;
+        if (a.isHalfDay && a.secondHalfLeaveType) {
+          if (a.secondHalfLeaveType === 'LOCAL') rLocalDays += 0.5; else if (a.secondHalfLeaveType === 'SICK') rSickDays += 0.5;
+        }
+      }
       await generatePayslipPDF({
         employee: { employeeId: emp.employeeId, firstName: emp.firstName, lastName: emp.lastName, email: emp.email, department: emp.department, jobTitle: emp.jobTitle, nationalId: emp.nationalId || '' },
-        payroll: { id: pr.id, month: pr.month, year: pr.year, workingDays: pr.workingDays, presentDays: pr.presentDays, leaveDays: pr.leaveDays, absenceDays: pr.absenceDays, baseSalary: Number(pr.baseSalary), travellingAllowance: Number(pr.travellingAllowance), otherAllowances: Number(pr.otherAllowances), travellingDeduction: Number(pr.travellingDeduction), totalDeductions: Number(pr.totalDeductions), grossSalary: Number(pr.grossSalary), netSalary: Number(pr.netSalary), localLeaveBalance: Number(emp.localLeaveBalance), sickLeaveBalance: Number(emp.sickLeaveBalance), adjustments: (pr.adjustments || []).map((a: any) => ({ label: a.label, type: a.type, amount: Number(a.amount) })), compensations: (pr.compensations || []).map((c: any) => ({ label: c.label, amount: Number(c.amount) })) },
+        payroll: { id: pr.id, month: pr.month, year: pr.year, workingDays: pr.workingDays, presentDays: pr.presentDays, leaveDays: pr.leaveDays, localLeaveDays: rLocalDays, sickLeaveDays: rSickDays, absenceDays: pr.absenceDays, baseSalary: Number(pr.baseSalary), travellingAllowance: Number(pr.travellingAllowance), otherAllowances: Number(pr.otherAllowances), travellingDeduction: Number(pr.travellingDeduction), totalDeductions: Number(pr.totalDeductions), grossSalary: Number(pr.grossSalary), netSalary: Number(pr.netSalary), localLeaveBalance: Number(emp.localLeaveBalance), sickLeaveBalance: Number(emp.sickLeaveBalance), adjustments: (pr.adjustments || []).map((a: any) => ({ label: a.label, type: a.type, amount: Number(a.amount) })), compensations: (pr.compensations || []).map((c: any) => ({ label: c.label, amount: Number(c.amount) })) },
         company: { name: cnCfg?.value || process.env.COMPANY_NAME || 'Company Name', address: caCfg?.value || process.env.COMPANY_ADDRESS || 'Company Address', phone: cpCfg?.value || process.env.COMPANY_PHONE || 'N/A', email: ceCfg?.value || process.env.COMPANY_EMAIL || 'N/A' },
       }, regeneratedPath);
       await prisma.payslip.update({ where: { payrollId }, data: { pdfPath: regeneratedPath } });
@@ -183,7 +229,7 @@ export const downloadPayslip = async (req: AuthRequest, res: Response) => {
     });
 
     // Send file
-    const filename = `Payslip_${payslip.payroll.employee.employeeId}.pdf`;
+    const filename = payslipFilename(payslip.payroll.employee.employeeId, payslip.payroll.month, payslip.payroll.year);
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

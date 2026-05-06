@@ -6,6 +6,7 @@ import {
   processMonthlyPayroll,
   resetMonthlyPayroll,
   approvePayroll,
+  rejectPayroll,
   lockPayroll,
   updatePayroll,
   deletePayroll,
@@ -42,8 +43,9 @@ router.post(
   resetMonthlyPayroll
 );
 
-// Secretary approves, Treasurer cannot
+// Secretary approves or rejects; Treasurer cannot approve/reject
 router.put('/:id/approve', authorize(...PAYROLL_APPROVE_ROLES), approvePayroll);
+router.put('/:id/reject', authorize(...PAYROLL_APPROVE_ROLES), rejectPayroll);
 
 // Treasurer locks after Secretary approval
 router.put('/:id/lock', authorize(...PAYROLL_WRITE_ROLES), lockPayroll);

@@ -36,14 +36,16 @@ interface PayrollRecord {
   totalDeductions: number;
   grossSalary: number;
   netSalary: number;
-  status: 'DRAFT' | 'APPROVED' | 'LOCKED';
+  status: 'DRAFT' | 'APPROVED' | 'REJECTED' | 'LOCKED';
   remarks?: string;
+  rejectionReason?: string;
+  rejectedBy?: string;
   adjustments?: { label: string; type: 'DEDUCTION' | 'ADDITION'; amount: number }[];
   compensations?: { id: string; label: string; amount: number }[];
 }
 
 const Payroll: React.FC = () => {
-  const { canProcessPayroll, canApprovePayroll, isAdmin } = useAuth();
+  const { canProcessPayroll, canApprovePayroll, isAdmin, isSecretary } = useAuth();
   const [payrolls, setPayrolls] = useState<PayrollRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -54,6 +56,12 @@ const Payroll: React.FC = () => {
   // View/Edit modal
   const [showModal, setShowModal] = useState(false);
   const [selectedPayroll, setSelectedPayroll] = useState<PayrollRecord | null>(null);
+
+  // Reject modal
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectingPayroll, setRejectingPayroll] = useState<PayrollRecord | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [rejecting, setRejecting] = useState(false);
   const [editData, setEditData] = useState({
     baseSalary: '',
     travellingAllowance: '',
@@ -178,21 +186,21 @@ const Payroll: React.FC = () => {
   };
 
   const handleApproveAll = async () => {
-    const draftPayrolls = payrolls.filter(p => p.status === 'DRAFT');
-    if (draftPayrolls.length === 0) {
-      setError('No draft payrolls to approve');
+    const pending = payrolls.filter(p => p.status === 'DRAFT' || p.status === 'REJECTED');
+    if (pending.length === 0) {
+      setError('No pending payrolls to approve');
       return;
     }
 
-    if (!window.confirm(`Approve all ${draftPayrolls.length} draft payrolls?`)) return;
+    if (!window.confirm(`Approve all ${pending.length} pending payrolls?`)) return;
 
     setApprovingAll(true);
     setError('');
     try {
-      for (const payroll of draftPayrolls) {
+      for (const payroll of pending) {
         await api.approvePayroll(payroll.id);
       }
-      setSuccess(`${draftPayrolls.length} payrolls approved`);
+      setSuccess(`${pending.length} payrolls approved`);
       fetchPayrolls();
     } catch (error: any) {
       setError(error.response?.data?.message || 'Failed to approve payrolls');
@@ -224,6 +232,31 @@ const Payroll: React.FC = () => {
       fetchPayrolls();
     } finally {
       setLockingAll(false);
+    }
+  };
+
+  const openRejectModal = (payroll: PayrollRecord) => {
+    setRejectingPayroll(payroll);
+    setRejectionReason('');
+    setShowRejectModal(true);
+  };
+
+  const handleReject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rejectingPayroll || !rejectionReason.trim()) return;
+    setRejecting(true);
+    setError('');
+    try {
+      const response = await api.rejectPayroll(rejectingPayroll.id, rejectionReason.trim());
+      if ((response as any).success) {
+        setSuccess(`Payroll rejected for ${rejectingPayroll.employee.firstName} ${rejectingPayroll.employee.lastName}. Treasurer has been notified.`);
+        setShowRejectModal(false);
+        fetchPayrolls();
+      }
+    } catch (error: any) {
+      setError(error.response?.data?.message || 'Failed to reject payroll');
+    } finally {
+      setRejecting(false);
     }
   };
 
@@ -283,6 +316,7 @@ const Payroll: React.FC = () => {
     const styles: Record<string, string> = {
       DRAFT: 'bg-yellow-100 text-yellow-800',
       APPROVED: 'bg-green-100 text-green-800',
+      REJECTED: 'bg-red-100 text-red-800',
       LOCKED: 'bg-gray-100 text-gray-800',
     };
     return `px-2 py-1 text-xs font-medium rounded-full ${styles[status] || 'bg-gray-100 text-gray-800'}`;
@@ -319,6 +353,7 @@ const Payroll: React.FC = () => {
   const totalNet = payrolls.reduce((sum, p) => sum + Number(p.netSalary), 0);
   const draftCount = payrolls.filter(p => p.status === 'DRAFT').length;
   const approvedCount = payrolls.filter(p => p.status === 'APPROVED').length;
+  const rejectedCount = payrolls.filter(p => p.status === 'REJECTED').length;
   const lockedCount = payrolls.filter(p => p.status === 'LOCKED').length;
 
   return (
@@ -381,7 +416,7 @@ const Payroll: React.FC = () => {
                 {processing ? 'Processing...' : 'Process Payroll'}
               </button>
             )}
-            {canApprovePayroll && payrolls.length > 0 && draftCount > 0 && (
+            {canApprovePayroll && payrolls.length > 0 && (draftCount + rejectedCount) > 0 && (
               <button
                 onClick={handleApproveAll}
                 disabled={approvingAll}
@@ -393,7 +428,7 @@ const Payroll: React.FC = () => {
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                   </svg>
                 )}
-                {approvingAll ? 'Approving...' : `Approve All (${draftCount})`}
+                {approvingAll ? 'Approving...' : `Approve All (${draftCount + rejectedCount})`}
               </button>
             )}
             {canProcessPayroll && payrolls.length > 0 && approvedCount > 0 && (
@@ -446,6 +481,7 @@ const Payroll: React.FC = () => {
               <div className="flex gap-2 mt-1">
                 {draftCount > 0 && <span className={getStatusBadge('DRAFT')}>{draftCount} Draft</span>}
                 {approvedCount > 0 && <span className={getStatusBadge('APPROVED')}>{approvedCount} Approved</span>}
+                {rejectedCount > 0 && <span className={getStatusBadge('REJECTED')}>{rejectedCount} Rejected</span>}
                 {lockedCount > 0 && <span className={getStatusBadge('LOCKED')}>{lockedCount} Locked</span>}
               </div>
             </div>
@@ -533,8 +569,13 @@ const Payroll: React.FC = () => {
                       <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-semibold text-green-700">
                         {formatCurrency(Number(payroll.netSalary))}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-center">
+                      <td className="px-4 py-3 text-center">
                         <span className={getStatusBadge(payroll.status)}>{payroll.status}</span>
+                        {payroll.status === 'REJECTED' && payroll.rejectionReason && (
+                          <p className="text-xs text-red-600 mt-1 max-w-[140px] mx-auto" title={payroll.rejectionReason}>
+                            {payroll.rejectionReason.length > 60 ? payroll.rejectionReason.slice(0, 60) + '…' : payroll.rejectionReason}
+                          </p>
+                        )}
                       </td>
                       {(canProcessPayroll || canApprovePayroll) && (
                         <td className="px-4 py-3 whitespace-nowrap text-center">
@@ -547,12 +588,20 @@ const Payroll: React.FC = () => {
                                 Edit
                               </button>
                             )}
-                            {canApprovePayroll && payroll.status === 'DRAFT' && (
+                            {canApprovePayroll && (payroll.status === 'DRAFT' || payroll.status === 'REJECTED') && (
                               <button
                                 onClick={() => handleApprove(payroll.id)}
-                                className="text-green-600 hover:text-green-900 text-sm"
+                                className="text-green-600 hover:text-green-900 text-sm font-medium"
                               >
                                 Approve
+                              </button>
+                            )}
+                            {canApprovePayroll && (payroll.status === 'DRAFT' || payroll.status === 'REJECTED') && (
+                              <button
+                                onClick={() => openRejectModal(payroll)}
+                                className="text-red-600 hover:text-red-900 text-sm font-medium"
+                              >
+                                Reject
                               </button>
                             )}
                             {canProcessPayroll && payroll.status === 'APPROVED' && (
@@ -578,6 +627,50 @@ const Payroll: React.FC = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Reject Modal */}
+        {showRejectModal && rejectingPayroll && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+              <h2 className="text-lg font-bold text-gray-900 mb-1">Reject Payroll</h2>
+              <p className="text-sm text-gray-500 mb-4">
+                {rejectingPayroll.employee.firstName} {rejectingPayroll.employee.lastName} — {rejectingPayroll.employee.employeeId}
+              </p>
+              <form onSubmit={handleReject}>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Reason for rejection <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    rows={4}
+                    required
+                    placeholder="Describe what needs to be corrected (e.g. incorrect base salary, missing allowance…)"
+                    className="w-full rounded-md border-gray-300 border p-2 text-sm focus:border-primary-500 focus:ring-primary-500"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">The Treasurer will be notified by email with this reason.</p>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowRejectModal(false)}
+                    className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={rejecting || !rejectionReason.trim()}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {rejecting ? 'Rejecting…' : 'Reject Payroll'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

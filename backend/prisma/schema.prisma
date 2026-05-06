@@ -39,6 +39,7 @@ enum LeaveStatus {
 enum PayrollStatus {
   DRAFT
   APPROVED
+  REJECTED
   LOCKED
 }
 
@@ -156,6 +157,9 @@ model Payroll {
   status                PayrollStatus @default(DRAFT)
   approvedBy            String?
   approvedAt            DateTime?
+  rejectedBy            String?
+  rejectedAt            DateTime?
+  rejectionReason       String?
   remarks               String?
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt

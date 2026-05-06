@@ -25,6 +25,8 @@ interface PayslipData {
     workingDays: number;
     presentDays: number;
     leaveDays: number;
+    localLeaveDays?: number;
+    sickLeaveDays?: number;
     absenceDays: number;
     baseSalary: number;
     travellingAllowance: number;
@@ -164,12 +166,16 @@ export const generatePayslipPDF = async (
       hr();
       heading('Attendance Summary');
       y = doc.y;
+      const annualTaken = data.payroll.localLeaveDays != null ? `${data.payroll.localLeaveDays} day(s)` : `${data.payroll.leaveDays} day(s)`;
+      const sickTaken   = data.payroll.sickLeaveDays  != null ? `${data.payroll.sickLeaveDays} day(s)` : 'N/A';
       infoRow2('Working Days:', String(data.payroll.workingDays),
-               'Leaves Taken:', String(data.payroll.leaveDays), y, 110);
+               'Annual Leave Taken:', annualTaken, y, 110);
       y += ROW_H;
       const annualBal = data.payroll.localLeaveBalance != null ? `${data.payroll.localLeaveBalance} days` : 'N/A';
       const sickBal   = data.payroll.sickLeaveBalance  != null ? `${data.payroll.sickLeaveBalance} days`  : 'N/A';
-      infoRow2('Ann. Leave Bal.:', annualBal, 'Sick Leave Bal.:', sickBal, y, 110);
+      infoRow2('Ann. Leave Bal.:', annualBal, 'Sick Leave Taken:', sickTaken, y, 110);
+      y += ROW_H;
+      infoRow2('Sick Leave Bal.:', sickBal, '', '', y, 110);
       y += ROW_H + 8;
       doc.y = y;
 

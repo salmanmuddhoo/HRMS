@@ -236,13 +236,16 @@ export const getPayrollReport = async (req: AuthRequest, res: Response) => {
       return sum + (nsf ? Number(nsf.amount) : 0);
     }, 0);
 
-    // Employer CSG and NSF (additional employer contribution, not deducted from employee)
+    // Employer CSG, NSF, and Training Levy (additional employer contributions, not deducted from employee)
     const totalEmployerCSG = payrolls.reduce((sum, p) => {
       const base = Number(p.baseSalary);
       return sum + (base <= 50000 ? base * 0.03 : base * 0.06);
     }, 0);
     const totalEmployerNSF = payrolls.reduce((sum, p) => {
       return sum + Math.min(Number(p.baseSalary), 28570) * 0.025;
+    }, 0);
+    const totalTrainingLevy = payrolls.reduce((sum, p) => {
+      return sum + Number(p.baseSalary) * 0.015;
     }, 0);
 
     // Transfer totals by account type
@@ -280,6 +283,7 @@ export const getPayrollReport = async (req: AuthRequest, res: Response) => {
         totalEmployeeNSF,
         totalEmployerCSG,
         totalEmployerNSF,
+        totalTrainingLevy,
         transfersByAccount,
         payrollsByDepartment,
       },

@@ -136,8 +136,27 @@ const PayrollWiki: React.FC = () => {
             </tbody>
           </table>
 
+          <h4 className="font-semibold text-gray-800 mt-3">Training Levy</h4>
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="bg-orange-50">
+                <th className="border border-gray-300 px-3 py-2 text-left">Applies To</th>
+                <th className="border border-gray-300 px-3 py-2 text-left">Employer Rate</th>
+                <th className="border border-gray-300 px-3 py-2 text-left">Example (Rs 40,000)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="border border-gray-300 px-3 py-2">All employees</td>
+                <td className="border border-gray-300 px-3 py-2 font-semibold">1.5% × Basic Salary</td>
+                <td className="border border-gray-300 px-3 py-2">Rs 600.00</td>
+              </tr>
+            </tbody>
+          </table>
+          <p className="text-xs text-gray-500 mt-1">Training Levy is paid entirely by the employer on the employee's basic salary. It is not deducted from the employee's net salary.</p>
+
           <div className="bg-orange-50 border border-orange-200 rounded p-3 text-xs text-orange-800 mt-2">
-            <span className="font-semibold">Where to find totals:</span> The Payroll Management page (Treasurer view) shows a monthly "Employer Contributions" summary card with total CSG and NSF the employer must remit. Individual payroll detail modals also show the per-employee employer contribution.
+            <span className="font-semibold">Where to find totals:</span> The Payroll Management page (Treasurer view) shows a monthly "Employer Contributions" summary card with total CSG, NSF, and Training Levy the employer must remit. Individual payroll detail modals also show the per-employee employer contribution.
           </div>
         </div>
       ),

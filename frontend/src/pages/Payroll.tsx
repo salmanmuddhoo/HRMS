@@ -369,6 +369,7 @@ const Payroll: React.FC = () => {
   // Employer contribution helpers
   const calcEmployerCSG = (base: number) => base <= 50000 ? base * 0.03 : base * 0.06;
   const calcEmployerNSF = (base: number) => Math.min(base, 28570) * 0.025;
+  const calcTrainingLevy = (base: number) => base * 0.015;
 
   // Summary calculations
   const totalGross = payrolls.reduce((sum, p) => sum + Number(p.grossSalary), 0);
@@ -376,6 +377,7 @@ const Payroll: React.FC = () => {
   const totalNet = payrolls.reduce((sum, p) => sum + Number(p.netSalary), 0);
   const totalEmployerCSG = payrolls.reduce((sum, p) => sum + calcEmployerCSG(Number(p.baseSalary)), 0);
   const totalEmployerNSF = payrolls.reduce((sum, p) => sum + calcEmployerNSF(Number(p.baseSalary)), 0);
+  const totalTrainingLevy = payrolls.reduce((sum, p) => sum + calcTrainingLevy(Number(p.baseSalary)), 0);
   const draftCount = payrolls.filter(p => p.status === 'DRAFT').length;
   const approvedCount = payrolls.filter(p => p.status === 'APPROVED').length;
   const rejectedCount = payrolls.filter(p => p.status === 'REJECTED').length;
@@ -515,7 +517,8 @@ const Payroll: React.FC = () => {
                 <div className="text-sm text-orange-700 font-medium mb-1">Employer Contributions</div>
                 <div className="text-xs text-orange-600 flex justify-between"><span>CSG:</span><span className="font-semibold">{formatCurrency(totalEmployerCSG)}</span></div>
                 <div className="text-xs text-orange-600 flex justify-between"><span>NSF:</span><span className="font-semibold">{formatCurrency(totalEmployerNSF)}</span></div>
-                <div className="text-xs text-orange-800 font-bold flex justify-between border-t border-orange-200 mt-1 pt-1"><span>Total:</span><span>{formatCurrency(totalEmployerCSG + totalEmployerNSF)}</span></div>
+                <div className="text-xs text-orange-600 flex justify-between"><span>Training Levy:</span><span className="font-semibold">{formatCurrency(totalTrainingLevy)}</span></div>
+                <div className="text-xs text-orange-800 font-bold flex justify-between border-t border-orange-200 mt-1 pt-1"><span>Total:</span><span>{formatCurrency(totalEmployerCSG + totalEmployerNSF + totalTrainingLevy)}</span></div>
               </div>
             )}
           </div>
@@ -806,9 +809,13 @@ const Payroll: React.FC = () => {
                   <span>Employer NSF (2.5%)</span>
                   <span>{formatCurrency(calcEmployerNSF(Number(viewPayroll.baseSalary)))}</span>
                 </div>
+                <div className="flex justify-between text-orange-800 mt-1">
+                  <span>Training Levy (1.5%)</span>
+                  <span>{formatCurrency(calcTrainingLevy(Number(viewPayroll.baseSalary)))}</span>
+                </div>
                 <div className="flex justify-between text-orange-900 font-semibold mt-2 border-t border-orange-200 pt-2">
                   <span>Total Employer Contribution</span>
-                  <span>{formatCurrency(calcEmployerCSG(Number(viewPayroll.baseSalary)) + calcEmployerNSF(Number(viewPayroll.baseSalary)))}</span>
+                  <span>{formatCurrency(calcEmployerCSG(Number(viewPayroll.baseSalary)) + calcEmployerNSF(Number(viewPayroll.baseSalary)) + calcTrainingLevy(Number(viewPayroll.baseSalary)))}</span>
                 </div>
               </div>
 
@@ -1081,9 +1088,13 @@ const Payroll: React.FC = () => {
                           <span>Employer NSF (2.5%)</span>
                           <span>{formatCurrency(calcEmployerNSF(liveBase))}</span>
                         </div>
+                        <div className="flex justify-between text-orange-800 mt-1">
+                          <span>Training Levy (1.5%)</span>
+                          <span>{formatCurrency(calcTrainingLevy(liveBase))}</span>
+                        </div>
                         <div className="flex justify-between text-orange-900 font-semibold mt-2 border-t border-orange-200 pt-2">
                           <span>Total Employer Contribution</span>
-                          <span>{formatCurrency(calcEmployerCSG(liveBase) + calcEmployerNSF(liveBase))}</span>
+                          <span>{formatCurrency(calcEmployerCSG(liveBase) + calcEmployerNSF(liveBase) + calcTrainingLevy(liveBase))}</span>
                         </div>
                       </div>
                     </>

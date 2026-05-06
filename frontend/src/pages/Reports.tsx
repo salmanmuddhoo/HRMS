@@ -103,6 +103,7 @@ interface PayrollReportData {
     totalEmployeeNSF: number;
     totalEmployerCSG: number;
     totalEmployerNSF: number;
+    totalTrainingLevy: number;
     transfersByAccount: Record<string, { label: string; total: number }>;
     payrollsByDepartment: Record<string, { count: number; totalNetSalary: number; totalDeductions: number }>;
   };
@@ -140,6 +141,7 @@ const Reports: React.FC = () => {
     department: '',
   });
   const [selectedTransferAccount, setSelectedTransferAccount] = useState<string>('');
+  const [selectedStatutoryItem, setSelectedStatutoryItem] = useState<string>('');
 
   const departments = ['HR', 'IT', 'Finance', 'Operations', 'Sales', 'Marketing'];
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i);
@@ -704,7 +706,7 @@ const Reports: React.FC = () => {
               </div>
             </div>
 
-            {/* Employer CSG / NSF */}
+            {/* Employer CSG / NSF / Training Levy */}
             <div className="bg-orange-50 border border-orange-200 p-4 rounded-lg shadow">
               <h3 className="text-sm font-semibold text-orange-800 mb-3">Employer Contributions</h3>
               <p className="text-xs text-orange-600 mb-3">Additional employer-side contributions not deducted from employees.</p>
@@ -717,9 +719,13 @@ const Reports: React.FC = () => {
                   <span className="text-sm text-orange-700">Total NSF (employer 2.5%)</span>
                   <span className="text-sm font-semibold text-orange-700">{formatCurrency(payrollData.statistics.totalEmployerNSF)}</span>
                 </div>
+                <div className="flex justify-between items-center border-b border-orange-200 pb-2">
+                  <span className="text-sm text-orange-700">Training Levy (1.5%)</span>
+                  <span className="text-sm font-semibold text-orange-700">{formatCurrency(payrollData.statistics.totalTrainingLevy)}</span>
+                </div>
                 <div className="flex justify-between items-center pt-1">
                   <span className="text-sm font-semibold text-orange-900">Total employer contribution</span>
-                  <span className="text-sm font-bold text-orange-900">{formatCurrency(payrollData.statistics.totalEmployerCSG + payrollData.statistics.totalEmployerNSF)}</span>
+                  <span className="text-sm font-bold text-orange-900">{formatCurrency(payrollData.statistics.totalEmployerCSG + payrollData.statistics.totalEmployerNSF + payrollData.statistics.totalTrainingLevy)}</span>
                 </div>
               </div>
             </div>
@@ -845,6 +851,103 @@ const Reports: React.FC = () => {
             )}
           </div>
 
+          {/* Statutory Contribution Breakdown */}
+          <div className="bg-white p-4 rounded-lg shadow mb-6">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Statutory Contribution Details by Employee</h3>
+            <p className="text-xs text-gray-500 mb-3">Select a contribution type to see the per-employee breakdown for this period.</p>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {[
+                { key: 'EMP_CSG', label: 'Employee CSG', color: 'red' },
+                { key: 'EMP_NSF', label: 'Employee NSF', color: 'red' },
+                { key: 'EMPR_CSG', label: 'Employer CSG', color: 'orange' },
+                { key: 'EMPR_NSF', label: 'Employer NSF', color: 'orange' },
+                { key: 'TRAINING', label: 'Training Levy', color: 'orange' },
+              ].map(({ key, label, color }) => (
+                <button
+                  key={key}
+                  onClick={() => setSelectedStatutoryItem(prev => prev === key ? '' : key)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                    selectedStatutoryItem === key
+                      ? (color === 'red' ? 'bg-red-600 text-white border-red-600' : 'bg-orange-500 text-white border-orange-500')
+                      : (color === 'red' ? 'bg-white text-red-700 border-red-300 hover:bg-red-50' : 'bg-white text-orange-700 border-orange-300 hover:bg-orange-50')
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {selectedStatutoryItem ? (() => {
+              const itemLabels: Record<string, string> = {
+                EMP_CSG: 'Employee CSG',
+                EMP_NSF: 'Employee NSF',
+                EMPR_CSG: 'Employer CSG',
+                EMPR_NSF: 'Employer NSF',
+                TRAINING: 'Training Levy',
+              };
+              const getAmount = (p: (typeof payrollData.payrolls)[0]): number => {
+                const base = Number(p.baseSalary);
+                switch (selectedStatutoryItem) {
+                  case 'EMP_CSG': {
+                    const adj = p.adjustments?.find(a => a.label === 'CSG');
+                    return adj ? Number(adj.amount) : 0;
+                  }
+                  case 'EMP_NSF': {
+                    const adj = p.adjustments?.find(a => a.label === 'NSF');
+                    return adj ? Number(adj.amount) : 0;
+                  }
+                  case 'EMPR_CSG':
+                    return base <= 50000 ? base * 0.03 : base * 0.06;
+                  case 'EMPR_NSF':
+                    return Math.min(base, 28570) * 0.025;
+                  case 'TRAINING':
+                    return base * 0.015;
+                  default:
+                    return 0;
+                }
+              };
+              const rows = payrollData.payrolls.map(p => ({ p, amount: getAmount(p) })).filter(r => r.amount > 0);
+              const total = rows.reduce((s, r) => s + r.amount, 0);
+              const isEmployer = selectedStatutoryItem.startsWith('EMPR') || selectedStatutoryItem === 'TRAINING';
+              if (rows.length === 0) {
+                return <div className="text-sm text-gray-500 text-center py-4">No data available for {itemLabels[selectedStatutoryItem]} in this period.</div>;
+              }
+              return (
+                <div>
+                  <div className={`text-xs mb-2 ${isEmployer ? 'text-orange-700' : 'text-red-700'}`}>
+                    {rows.length} employee{rows.length !== 1 ? 's' : ''} · Total: <span className="font-semibold">{formatCurrency(total)}</span>
+                  </div>
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Base Salary</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {rows.map(({ p, amount }) => (
+                        <tr key={p.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-2 whitespace-nowrap">
+                            <div className="font-medium text-gray-900">{p.employee.firstName} {p.employee.lastName}</div>
+                            <div className="text-xs text-gray-500">{p.employee.employeeId}</div>
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-gray-600">{p.employee.department}</td>
+                          <td className="px-4 py-2 whitespace-nowrap text-right text-gray-600">{formatCurrency(Number(p.baseSalary))}</td>
+                          <td className={`px-4 py-2 whitespace-nowrap text-right font-semibold ${isEmployer ? 'text-orange-700' : 'text-red-600'}`}>
+                            {formatCurrency(amount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })() : (
+              <div className="text-sm text-gray-400 text-center py-4">Select a contribution type above to view employee details.</div>
+            )}
+          </div>
+
           {/* Payroll Records Table */}
           <div className="bg-white shadow rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
@@ -875,7 +978,7 @@ const Reports: React.FC = () => {
                         {formatCurrency(payroll.baseSalary)}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-right text-sm text-blue-600">
-                        {formatCurrency(payroll.travellingAllowance + payroll.otherAllowances)}
+                        {formatCurrency(Number(payroll.travellingAllowance) + Number(payroll.otherAllowances))}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-right text-sm text-red-600">
                         {formatCurrency(payroll.totalDeductions)}

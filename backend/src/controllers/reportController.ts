@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import prisma from '../config/database';
 import { sendSuccess, sendError } from '../utils/response';
-import { getMonthDateRange } from '../utils/date';
+import { getMonthDateRange, countPayrollWorkingDays } from '../utils/date';
 
 export const getLeaveBalancesReport = async (req: AuthRequest, res: Response) => {
   try {
@@ -138,74 +138,104 @@ export const getAttendanceReport = async (req: AuthRequest, res: Response) => {
       return sendError(res, 'Month and year are required', 400);
     }
 
-    const { startDate, endDate } = getMonthDateRange(
-      parseInt(month as string),
-      parseInt(year as string)
-    );
+    const monthNum = parseInt(month as string);
+    const yearNum  = parseInt(year as string);
+    const { startDate, endDate } = getMonthDateRange(monthNum, yearNum);
 
-    const where: any = {
-      date: {
-        gte: startDate,
-        lte: endDate,
-      },
-    };
+    // "As at date": cap at today so present days reflect what has actually elapsed
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+    const effectiveEnd = endDate <= todayEnd ? endDate : todayEnd;
 
+    // Public holidays within the effective range (Mon–Sat working day calendar)
+    const holidayRecords = await prisma.publicHoliday.findMany({
+      where: { date: { gte: startDate, lte: effectiveEnd } },
+      select: { date: true },
+    });
+    const holidayDates = holidayRecords.map(h => new Date(h.date));
+    const workingDaysToDate = countPayrollWorkingDays(startDate, effectiveEnd, holidayDates);
+
+    // Fetch all active employees matching the filter
+    const empWhere: any = { status: 'ACTIVE' };
     if (employeeId) {
-      where.employeeId = employeeId;
+      empWhere.id = employeeId as string;
     } else if (department) {
-      where.employee = {
-        department,
-      };
+      empWhere.department = department as string;
     }
 
-    const attendance = await prisma.attendance.findMany({
-      where,
-      include: {
-        employee: {
-          select: {
-            id: true,
-            employeeId: true,
-            firstName: true,
-            lastName: true,
-            department: true,
-            jobTitle: true,
-          },
-        },
+    const employees = await prisma.employee.findMany({
+      where: empWhere,
+      select: {
+        id: true,
+        employeeId: true,
+        firstName: true,
+        lastName: true,
+        department: true,
+        jobTitle: true,
       },
-      orderBy: [{ employee: { employeeId: 'asc' } }, { date: 'asc' }],
+      orderBy: [{ department: 'asc' }, { employeeId: 'asc' }],
     });
 
-    // Group by employee
-    const employeeAttendance = attendance.reduce((acc: any, record) => {
-      const empId = record.employee.id;
-      if (!acc[empId]) {
-        acc[empId] = {
-          employee: record.employee,
-          totalDays: 0,
-          presentDays: 0,
-          leaveDays: 0,
-          absenceDays: 0,
-          localLeaveDays: 0,
-          sickLeaveDays: 0,
-          records: [],
-        };
-      }
-      acc[empId].totalDays++;
-      if (record.isPresent) acc[empId].presentDays++;
-      if (record.isLeave) {
-        acc[empId].leaveDays++;
-        if (record.leaveType === 'LOCAL') acc[empId].localLeaveDays++;
-        if (record.leaveType === 'SICK') acc[empId].sickLeaveDays++;
-      }
-      if (record.isAbsence) acc[empId].absenceDays++;
-      acc[empId].records.push(record);
-      return acc;
-    }, {});
+    // Fetch attendance records for the effective range
+    const allAttendance = await prisma.attendance.findMany({
+      where: {
+        employeeId: { in: employees.map(e => e.id) },
+        date: { gte: startDate, lte: effectiveEnd },
+      },
+      orderBy: [{ employeeId: 'asc' }, { date: 'asc' }],
+    });
+
+    // Index records by employeeId
+    const attByEmp: Record<string, typeof allAttendance> = {};
+    for (const r of allAttendance) {
+      if (!attByEmp[r.employeeId]) attByEmp[r.employeeId] = [];
+      attByEmp[r.employeeId].push(r);
+    }
+
+    // Build summary for every employee (including those with no attendance records)
+    const employeeAttendance = employees.map(emp => {
+      const records = attByEmp[emp.id] || [];
+
+      // Half-day-aware leave counting (mirrors payroll logic)
+      const leaveDays = records.reduce((sum, a) => {
+        if (!a.isLeave) return sum;
+        if (a.isHalfDay && !a.secondHalfLeaveType) return sum + 0.5;
+        return sum + 1;
+      }, 0);
+
+      const absenceDays = records.filter(a => a.isAbsence).length;
+
+      const localLeaveDays = records.reduce((sum, a) => {
+        if (!a.isLeave || a.leaveType !== 'LOCAL') return sum;
+        if (a.isHalfDay && !a.secondHalfLeaveType) return sum + 0.5;
+        return sum + 1;
+      }, 0);
+
+      const sickLeaveDays = records.reduce((sum, a) => {
+        if (!a.isLeave || a.leaveType !== 'SICK') return sum;
+        if (a.isHalfDay && !a.secondHalfLeaveType) return sum + 0.5;
+        return sum + 1;
+      }, 0);
+
+      // Present = working days elapsed minus leave and absence
+      const presentDays = Math.max(0, workingDaysToDate - leaveDays - absenceDays);
+
+      return {
+        employee: emp,
+        totalDays: workingDaysToDate,
+        presentDays,
+        leaveDays,
+        absenceDays,
+        localLeaveDays,
+        sickLeaveDays,
+        records,
+      };
+    });
 
     return sendSuccess(res, {
-      month: parseInt(month as string),
-      year: parseInt(year as string),
-      employeeAttendance: Object.values(employeeAttendance),
+      month: monthNum,
+      year: yearNum,
+      employeeAttendance,
     });
   } catch (error: any) {
     console.error('Get attendance report error:', error);

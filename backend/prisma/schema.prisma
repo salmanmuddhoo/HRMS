@@ -146,8 +146,8 @@ model Payroll {
   month                 Int
   year                  Int
   workingDays           Int
-  presentDays           Int
-  leaveDays             Int
+  presentDays           Decimal
+  leaveDays             Decimal
   absenceDays           Int
   baseSalary            Decimal
   travellingAllowance   Decimal

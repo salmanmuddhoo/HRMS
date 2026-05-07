@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "installCommand": "npm install && cd backend && npm install && npx prisma generate && npx prisma migrate deploy && cd ../frontend && npm install --legacy-peer-deps",
+  "installCommand": "npm install && cd backend && npm install && npx prisma generate && (npx prisma migrate resolve --rolled-back 20260422000000_float_to_decimal || true) && npx prisma migrate deploy && cd ../frontend && npm install --legacy-peer-deps",
   "buildCommand": "cd frontend && CI=false npm run build",
   "outputDirectory": "frontend/build",
   "functions": {

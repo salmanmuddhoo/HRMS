@@ -38,6 +38,7 @@ const Leaves: React.FC = () => {
   const { user, isEmployer } = useAuth();
   const [leaves, setLeaves] = useState<Leave[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [holidays, setHolidays] = useState<{ date: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [employeeSearch, setEmployeeSearch] = useState('');
@@ -75,8 +76,19 @@ const Leaves: React.FC = () => {
     halfDayPeriod: 'MORNING' as 'MORNING' | 'AFTERNOON',
   });
 
+  const getHolidaysInRange = (start: string, end: string) => {
+    if (!start || !end) return [];
+    return holidays.filter(h => {
+      const d = h.date.split('T')[0];
+      return d >= start && d <= end;
+    });
+  };
+
   useEffect(() => {
     fetchLeaves();
+    api.getHolidays().then((res: any) => {
+      if (res.success) setHolidays(res.data || []);
+    }).catch(() => {});
     if (isEmployer) fetchEmployees();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
@@ -507,6 +519,18 @@ const Leaves: React.FC = () => {
                     </div>
                   </div>
 
+                  {(() => {
+                    const conflicts = getHolidaysInRange(formData.startDate, formData.endDate);
+                    return conflicts.length > 0 ? (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                        <p className="text-sm text-red-700 font-medium">Public holiday conflict</p>
+                        <ul className="mt-1 text-sm text-red-600 list-disc list-inside">
+                          {conflicts.map(h => <li key={h.date}>{h.name} ({h.date.split('T')[0]})</li>)}
+                        </ul>
+                      </div>
+                    ) : null;
+                  })()}
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
                     <textarea
@@ -523,7 +547,11 @@ const Leaves: React.FC = () => {
                     <button type="button" onClick={() => { setShowApplyModal(false); setError(''); }} className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50">
                       Cancel
                     </button>
-                    <button type="submit" disabled={submitting} className="px-4 py-2 bg-primary-600 text-white rounded-md text-sm hover:bg-primary-700 disabled:opacity-50">
+                    <button
+                      type="submit"
+                      disabled={submitting || getHolidaysInRange(formData.startDate, formData.endDate).length > 0}
+                      className="px-4 py-2 bg-primary-600 text-white rounded-md text-sm hover:bg-primary-700 disabled:opacity-50"
+                    >
                       {submitting ? 'Submitting...' : 'Submit'}
                     </button>
                   </div>

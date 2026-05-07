@@ -156,6 +156,16 @@ export const applyLeave = async (req: AuthRequest, res: Response) => {
       );
     }
 
+    // Reject if any date in the range falls on a public holiday
+    const holidaysInRange = await prisma.publicHoliday.findMany({
+      where: { date: { gte: start, lte: end } },
+      orderBy: { date: 'asc' },
+    });
+    if (holidaysInRange.length > 0) {
+      const names = holidaysInRange.map(h => h.name).join(', ');
+      return sendError(res, `Cannot apply leave on a public holiday: ${names}`, 400);
+    }
+
     // Check for overlapping leaves
     const overlappingLeave = await prisma.leave.findFirst({
       where: {
@@ -482,6 +492,16 @@ export const addUrgentLeave = async (req: AuthRequest, res: Response) => {
     }
     if (leaveType === 'SICK' && Number(employee.sickLeaveBalance) < safeDays) {
       return sendError(res, `Insufficient sick leave balance. Available: ${employee.sickLeaveBalance} days`, 400);
+    }
+
+    // Reject if any date in the range falls on a public holiday
+    const holidaysInRange = await prisma.publicHoliday.findMany({
+      where: { date: { gte: start, lte: end } },
+      orderBy: { date: 'asc' },
+    });
+    if (holidaysInRange.length > 0) {
+      const names = holidaysInRange.map(h => h.name).join(', ');
+      return sendError(res, `Cannot add leave on a public holiday: ${names}`, 400);
     }
 
     const leave = await prisma.$transaction(async (tx) => {

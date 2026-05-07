@@ -57,6 +57,13 @@ async function main() {
 
   console.log('Admin user ready:', adminUser.email);
 
+  // Apply schema columns that may not exist yet when the DB was set up via
+  // prisma db push and the session-mode pooler is unavailable for migrations.
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE "employees"
+      ADD COLUMN IF NOT EXISTS "sickLeaveBank" DECIMAL NOT NULL DEFAULT 0;
+  `);
+
   // Create admin employee profile (required for login)
   await prisma.employee.upsert({
     where: { email: adminEmail },

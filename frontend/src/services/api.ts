@@ -330,6 +330,10 @@ class ApiService {
     return this.request({ method: 'GET', url: '/reports/leave', params });
   }
 
+  async getLeaveBalancesReport(params?: any) {
+    return this.request({ method: 'GET', url: '/reports/leave-balances', params });
+  }
+
   async getAttendanceReport(params: any) {
     return this.request({ method: 'GET', url: '/reports/attendance', params });
   }

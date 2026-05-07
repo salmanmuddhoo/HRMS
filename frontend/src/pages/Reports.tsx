@@ -109,7 +109,30 @@ interface PayrollReportData {
   };
 }
 
-type ReportTab = 'leave' | 'attendance' | 'payroll';
+interface LeaveBalanceEmployee {
+  id: string;
+  employeeId: string;
+  firstName: string;
+  lastName: string;
+  department: string;
+  jobTitle: string;
+  localLeaveBalance: number;
+  sickLeaveBalance: number;
+  sickLeaveBank: number;
+}
+
+interface LeaveBalancesReportData {
+  employees: LeaveBalanceEmployee[];
+  statistics: {
+    totalEmployees: number;
+    totalLocalLeaveBalance: number;
+    totalSickLeaveBalance: number;
+    totalSickLeaveBank: number;
+  };
+  asOf: string;
+}
+
+type ReportTab = 'leave' | 'attendance' | 'payroll' | 'leaveBalances';
 
 const Reports: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ReportTab>('leave');
@@ -142,6 +165,10 @@ const Reports: React.FC = () => {
   });
   const [selectedTransferAccount, setSelectedTransferAccount] = useState<string>('');
   const [selectedStatutoryItem, setSelectedStatutoryItem] = useState<string>('');
+
+  // Leave Balances Report State
+  const [leaveBalancesData, setLeaveBalancesData] = useState<LeaveBalancesReportData | null>(null);
+  const [leaveBalancesFilters, setLeaveBalancesFilters] = useState({ department: '' });
 
   const departments = ['HR', 'IT', 'Finance', 'Operations', 'Sales', 'Marketing'];
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i);
@@ -201,6 +228,20 @@ const Reports: React.FC = () => {
     }
   }, [attendanceFilters]);
 
+  const fetchLeaveBalancesReport = useCallback(async () => {
+    try {
+      setLoading(true);
+      const params: any = {};
+      if (leaveBalancesFilters.department) params.department = leaveBalancesFilters.department;
+      const response = await api.getLeaveBalancesReport(params);
+      if ((response as any).success) setLeaveBalancesData((response as any).data);
+    } catch (error) {
+      console.error('Failed to fetch leave balances report:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [leaveBalancesFilters]);
+
   const fetchPayrollReport = useCallback(async () => {
     try {
       setLoading(true);
@@ -227,8 +268,10 @@ const Reports: React.FC = () => {
       fetchAttendanceReport();
     } else if (activeTab === 'payroll') {
       fetchPayrollReport();
+    } else if (activeTab === 'leaveBalances') {
+      fetchLeaveBalancesReport();
     }
-  }, [activeTab, fetchLeaveReport, fetchAttendanceReport, fetchPayrollReport]);
+  }, [activeTab, fetchLeaveReport, fetchAttendanceReport, fetchPayrollReport, fetchLeaveBalancesReport]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-MU', {
@@ -1000,6 +1043,107 @@ const Reports: React.FC = () => {
     </div>
   );
 
+  const renderLeaveBalancesReport = () => (
+    <div>
+      {/* Filter */}
+      <div className="bg-white p-4 rounded-lg shadow mb-6">
+        <h3 className="text-sm font-medium text-gray-700 mb-3">Filters</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Department</label>
+            <select
+              value={leaveBalancesFilters.department}
+              onChange={(e) => setLeaveBalancesFilters({ department: e.target.value })}
+              className="w-full rounded-md border-gray-300 shadow-sm border p-2 text-sm"
+            >
+              <option value="">All Departments</option>
+              {departments.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {leaveBalancesData && (
+        <>
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-white p-4 rounded-lg shadow">
+              <div className="text-2xl font-bold text-gray-900">{leaveBalancesData.statistics.totalEmployees}</div>
+              <div className="text-sm text-gray-500">Active Employees</div>
+            </div>
+            <div className="bg-white p-4 rounded-lg shadow">
+              <div className="text-2xl font-bold text-blue-600">{leaveBalancesData.statistics.totalLocalLeaveBalance.toFixed(1)}</div>
+              <div className="text-sm text-gray-500">Total Annual Leave Days</div>
+            </div>
+            <div className="bg-white p-4 rounded-lg shadow">
+              <div className="text-2xl font-bold text-green-600">{leaveBalancesData.statistics.totalSickLeaveBalance.toFixed(1)}</div>
+              <div className="text-sm text-gray-500">Total Sick Leave Days</div>
+            </div>
+            <div className="bg-white p-4 rounded-lg shadow">
+              <div className="text-2xl font-bold text-purple-600">{leaveBalancesData.statistics.totalSickLeaveBank.toFixed(1)}</div>
+              <div className="text-sm text-gray-500">Total Sick Leave Bank</div>
+            </div>
+          </div>
+
+          <div className="bg-white shadow rounded-lg overflow-hidden">
+            <div className="px-4 py-3 border-b bg-gray-50 flex items-center justify-between">
+              <h3 className="text-sm font-medium text-gray-900">Leave Balances as of {new Date(leaveBalancesData.asOf).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</h3>
+              <span className="text-xs text-gray-500">{leaveBalancesData.employees.length} employees</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-blue-600 uppercase">Annual Leave Balance</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-green-600 uppercase">Sick Leave Balance</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-purple-600 uppercase">Sick Leave Bank</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {leaveBalancesData.employees.map((emp) => (
+                    <tr key={emp.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">{emp.firstName} {emp.lastName}</div>
+                        <div className="text-xs text-gray-500">{emp.employeeId} &bull; {emp.jobTitle}</div>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{emp.department}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-center">
+                        <span className="px-3 py-1 bg-blue-50 text-blue-800 rounded-full text-sm font-semibold">
+                          {Number(emp.localLeaveBalance).toFixed(1)} days
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-center">
+                        <span className="px-3 py-1 bg-green-50 text-green-800 rounded-full text-sm font-semibold">
+                          {Number(emp.sickLeaveBalance).toFixed(1)} days
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-center">
+                        {Number(emp.sickLeaveBank) > 0 ? (
+                          <span className="px-3 py-1 bg-purple-50 text-purple-800 rounded-full text-sm font-semibold">
+                            {Number(emp.sickLeaveBank).toFixed(1)} days
+                          </span>
+                        ) : (
+                          <span className="text-sm text-gray-400">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {leaveBalancesData.employees.length === 0 && (
+                <div className="text-center py-8 text-gray-500">No employees found</div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
   return (
     <Layout>
       <div className="px-4 py-6">
@@ -1041,6 +1185,16 @@ const Reports: React.FC = () => {
             >
               Payroll Report
             </button>
+            <button
+              onClick={() => setActiveTab('leaveBalances')}
+              className={`py-2 px-1 border-b-2 text-sm font-medium ${
+                activeTab === 'leaveBalances'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Leave Balances
+            </button>
           </nav>
         </div>
 
@@ -1054,6 +1208,7 @@ const Reports: React.FC = () => {
             {activeTab === 'leave' && renderLeaveReport()}
             {activeTab === 'attendance' && renderAttendanceReport()}
             {activeTab === 'payroll' && renderPayrollReport()}
+            {activeTab === 'leaveBalances' && renderLeaveBalancesReport()}
           </>
         )}
       </div>

@@ -4,6 +4,49 @@ import prisma from '../config/database';
 import { sendSuccess, sendError } from '../utils/response';
 import { getMonthDateRange } from '../utils/date';
 
+export const getLeaveBalancesReport = async (req: AuthRequest, res: Response) => {
+  try {
+    const { department } = req.query;
+
+    const where: any = { status: 'ACTIVE', NOT: { user: { role: 'ADMIN' } } };
+    if (department) where.department = department as string;
+
+    const employees = await prisma.employee.findMany({
+      where,
+      select: {
+        id: true,
+        employeeId: true,
+        firstName: true,
+        lastName: true,
+        department: true,
+        jobTitle: true,
+        localLeaveBalance: true,
+        sickLeaveBalance: true,
+        sickLeaveBank: true,
+      },
+      orderBy: [{ department: 'asc' }, { firstName: 'asc' }],
+    });
+
+    const totalLocalLeave   = employees.reduce((s, e) => s + Number(e.localLeaveBalance), 0);
+    const totalSickLeave    = employees.reduce((s, e) => s + Number(e.sickLeaveBalance),  0);
+    const totalSickLeaveBank = employees.reduce((s, e) => s + Number(e.sickLeaveBank),    0);
+
+    return sendSuccess(res, {
+      employees,
+      statistics: {
+        totalEmployees: employees.length,
+        totalLocalLeaveBalance: totalLocalLeave,
+        totalSickLeaveBalance: totalSickLeave,
+        totalSickLeaveBank,
+      },
+      asOf: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    console.error('Get leave balances report error:', error);
+    return sendError(res, 'Failed to generate leave balances report', 500);
+  }
+};
+
 export const getLeaveReport = async (req: AuthRequest, res: Response) => {
   try {
     const { startDate, endDate, department, leaveType, status } = req.query;

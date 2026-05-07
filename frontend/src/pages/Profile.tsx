@@ -95,6 +95,12 @@ const Profile: React.FC = () => {
                 <p className="text-gray-500">Sick Leave Balance</p>
                 <p className="font-medium text-gray-900">{user.employee.sickLeaveBalance} days</p>
               </div>
+              {['ADMIN', 'TREASURER', 'SECRETARY', 'DIRECTOR'].includes(user?.role ?? '') && (
+                <div>
+                  <p className="text-gray-500">Sick Leave Bank</p>
+                  <p className="font-medium text-gray-900">{user.employee.sickLeaveBank ?? 0} days</p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -169,11 +175,15 @@ const Profile: React.FC = () => {
           )}
         </div>
 
-        {/* Email Notification Preference - only for employers/admins */}
-        {(user?.role === 'ADMIN' || user?.role === 'EMPLOYER' || user?.role === 'DIRECTOR') && (
+        {/* Email Notification Preference */}
+        {(
           <div className="bg-white shadow rounded-lg p-6">
             <h2 className="text-lg font-medium text-gray-900 mb-1">Email Notifications</h2>
-            <p className="text-sm text-gray-500 mb-4">Receive email alerts when employees submit leave requests.</p>
+            <p className="text-sm text-gray-500 mb-4">
+              {['ADMIN', 'TREASURER', 'SECRETARY', 'DIRECTOR'].includes(user?.role ?? '')
+                ? 'Receive email alerts when employees submit leave requests.'
+                : 'Receive email notifications when your leave requests are approved or rejected.'}
+            </p>
             {notifMsg && <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-blue-700 text-sm">{notifMsg}</div>}
             <label className="flex items-center gap-3 cursor-pointer">
               <div

@@ -7,6 +7,8 @@ import {
   updateMultipleConfig,
   getLeaveDefaults,
   getPayrollCycle,
+  getLeaveYearStatus,
+  resetLeaveYear,
 } from '../controllers/configController';
 
 const router = Router();
@@ -16,6 +18,10 @@ router.use(authenticate);
 
 // Get leave defaults (for employee creation form)
 router.get('/leave-defaults', getLeaveDefaults);
+
+// Leave year reset (admin only)
+router.get('/leave-year-status', authorize('ADMIN'), getLeaveYearStatus);
+router.post('/reset-leave-year', authorize('ADMIN'), resetLeaveYear);
 
 // Get payroll cycle info (any authenticated user)
 router.get('/payroll-cycle', getPayrollCycle);

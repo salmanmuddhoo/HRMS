@@ -81,6 +81,7 @@ model Employee {
   otherAllowances  Decimal            @default(0)
   localLeaveBalance Decimal           @default(0)
   sickLeaveBalance Decimal            @default(0)
+  sickLeaveBank    Decimal            @default(0)
   compensations    EmployeeCompensation[]
   transfers        EmployeeTransfer[]
   leaves           Leave[]

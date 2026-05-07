@@ -313,6 +313,14 @@ class ApiService {
     return this.request({ method: 'POST', url: '/config/batch', data: configs });
   }
 
+  async getLeaveYearStatus() {
+    return this.request({ method: 'GET', url: '/config/leave-year-status' });
+  }
+
+  async resetLeaveYear() {
+    return this.request({ method: 'POST', url: '/config/reset-leave-year' });
+  }
+
   // Reports
   async getDashboardStats() {
     return this.request({ method: 'GET', url: '/reports/dashboard' });
@@ -320,6 +328,10 @@ class ApiService {
 
   async getLeaveReport(params?: any) {
     return this.request({ method: 'GET', url: '/reports/leave', params });
+  }
+
+  async getLeaveBalancesReport(params?: any) {
+    return this.request({ method: 'GET', url: '/reports/leave-balances', params });
   }
 
   async getAttendanceReport(params: any) {

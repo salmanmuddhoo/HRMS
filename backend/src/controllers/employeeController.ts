@@ -130,6 +130,7 @@ export const createEmployee = async (req: AuthRequest, res: Response) => {
         email,
         password: hashedPassword,
         role: role || 'EMPLOYEE',
+        emailNotifications: (role || 'EMPLOYEE') !== 'DIRECTOR',
       },
     });
 

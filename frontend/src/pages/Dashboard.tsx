@@ -209,7 +209,7 @@ const Dashboard: React.FC = () => {
                     <div className="ml-5 w-0 flex-1">
                       <dl>
                         <dt className="text-sm font-medium text-gray-500 truncate">Monthly Payroll</dt>
-                        <dd className="text-lg font-semibold text-gray-900">
+                        <dd className="text-base font-semibold text-gray-900 truncate">
                           Rs {stats.currentMonthPayroll.totalAmount.toFixed(2)}
                         </dd>
                       </dl>

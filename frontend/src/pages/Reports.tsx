@@ -700,30 +700,30 @@ const Reports: React.FC = () => {
       {payrollData && (
         <>
           {/* Payroll Statistics */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-            <div className="bg-white p-4 rounded-lg shadow">
-              <div className="text-2xl font-bold text-gray-900">{payrollData.statistics.totalEmployees}</div>
-              <div className="text-sm text-gray-500">Employees</div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+            <div className="bg-white p-3 rounded-lg shadow">
+              <div className="text-xl font-bold text-gray-900">{payrollData.statistics.totalEmployees}</div>
+              <div className="text-xs text-gray-500">Employees</div>
             </div>
-            <div className="bg-white p-4 rounded-lg shadow">
-              <div className="text-lg font-bold text-gray-900">{formatCurrency(payrollData.statistics.totalBaseSalary)}</div>
-              <div className="text-sm text-gray-500">Base Salary</div>
+            <div className="bg-white p-3 rounded-lg shadow min-w-0">
+              <div className="text-base font-bold text-gray-900 truncate">{formatCurrency(payrollData.statistics.totalBaseSalary)}</div>
+              <div className="text-xs text-gray-500">Base Salary</div>
             </div>
-            <div className="bg-white p-4 rounded-lg shadow">
-              <div className="text-lg font-bold text-blue-600">{formatCurrency(payrollData.statistics.totalAllowances)}</div>
-              <div className="text-sm text-gray-500">Allowances</div>
+            <div className="bg-white p-3 rounded-lg shadow min-w-0">
+              <div className="text-base font-bold text-blue-600 truncate">{formatCurrency(payrollData.statistics.totalAllowances)}</div>
+              <div className="text-xs text-gray-500">Allowances</div>
             </div>
-            <div className="bg-white p-4 rounded-lg shadow">
-              <div className="text-lg font-bold text-red-600">{formatCurrency(payrollData.statistics.totalDeductions)}</div>
-              <div className="text-sm text-gray-500">Deductions</div>
+            <div className="bg-white p-3 rounded-lg shadow min-w-0">
+              <div className="text-base font-bold text-red-600 truncate">{formatCurrency(payrollData.statistics.totalDeductions)}</div>
+              <div className="text-xs text-gray-500">Deductions</div>
             </div>
-            <div className="bg-white p-4 rounded-lg shadow">
-              <div className="text-lg font-bold text-gray-700">{formatCurrency(payrollData.statistics.totalGrossSalary)}</div>
-              <div className="text-sm text-gray-500">Gross Salary</div>
+            <div className="bg-white p-3 rounded-lg shadow min-w-0">
+              <div className="text-base font-bold text-gray-700 truncate">{formatCurrency(payrollData.statistics.totalGrossSalary)}</div>
+              <div className="text-xs text-gray-500">Gross Salary</div>
             </div>
-            <div className="bg-white p-4 rounded-lg shadow">
-              <div className="text-lg font-bold text-green-600">{formatCurrency(payrollData.statistics.totalNetSalary)}</div>
-              <div className="text-sm text-gray-500">Net Salary</div>
+            <div className="bg-white p-3 rounded-lg shadow min-w-0">
+              <div className="text-base font-bold text-green-600 truncate">{formatCurrency(payrollData.statistics.totalNetSalary)}</div>
+              <div className="text-xs text-gray-500">Net Salary</div>
             </div>
           </div>
 
@@ -1153,11 +1153,11 @@ const Reports: React.FC = () => {
         </div>
 
         {/* Tabs */}
-        <div className="border-b border-gray-200 mb-6">
-          <nav className="-mb-px flex space-x-8">
+        <div className="border-b border-gray-200 mb-6 overflow-x-auto">
+          <nav className="-mb-px flex space-x-4 sm:space-x-8 min-w-max">
             <button
               onClick={() => setActiveTab('leave')}
-              className={`py-2 px-1 border-b-2 text-sm font-medium ${
+              className={`py-2 px-1 border-b-2 text-sm font-medium whitespace-nowrap ${
                 activeTab === 'leave'
                   ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -1167,7 +1167,7 @@ const Reports: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('attendance')}
-              className={`py-2 px-1 border-b-2 text-sm font-medium ${
+              className={`py-2 px-1 border-b-2 text-sm font-medium whitespace-nowrap ${
                 activeTab === 'attendance'
                   ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -1177,7 +1177,7 @@ const Reports: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('payroll')}
-              className={`py-2 px-1 border-b-2 text-sm font-medium ${
+              className={`py-2 px-1 border-b-2 text-sm font-medium whitespace-nowrap ${
                 activeTab === 'payroll'
                   ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -1187,7 +1187,7 @@ const Reports: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('leaveBalances')}
-              className={`py-2 px-1 border-b-2 text-sm font-medium ${
+              className={`py-2 px-1 border-b-2 text-sm font-medium whitespace-nowrap ${
                 activeTab === 'leaveBalances'
                   ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'

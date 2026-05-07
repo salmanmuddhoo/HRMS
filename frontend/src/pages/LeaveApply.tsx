@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -9,12 +9,27 @@ const LeaveApply: React.FC = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [holidays, setHolidays] = useState<{ date: string; name: string }[]>([]);
   const [formData, setFormData] = useState({
     leaveType: 'LOCAL',
     startDate: '',
     endDate: '',
     reason: '',
   });
+
+  useEffect(() => {
+    api.getHolidays().then((res: any) => {
+      if (res.success) setHolidays(res.data || []);
+    }).catch(() => {});
+  }, []);
+
+  const getHolidaysInRange = (start: string, end: string) => {
+    if (!start || !end) return [];
+    return holidays.filter(h => {
+      const d = h.date.split('T')[0];
+      return d >= start && d <= end;
+    });
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -42,17 +57,23 @@ const LeaveApply: React.FC = () => {
       const start = new Date(formData.startDate);
       const end = new Date(formData.endDate);
       const diffTime = Math.abs(end.getTime() - start.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-      return diffDays;
+      return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
     }
     return 0;
   };
 
+  const holidayConflicts = getHolidaysInRange(formData.startDate, formData.endDate);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
 
+    if (holidayConflicts.length > 0) {
+      setError(`Cannot apply leave on a public holiday: ${holidayConflicts.map(h => h.name).join(', ')}`);
+      return;
+    }
+
+    setLoading(true);
     try {
       const response = await api.applyLeave({
         ...formData,
@@ -74,6 +95,9 @@ const LeaveApply: React.FC = () => {
   const leaveBalance = formData.leaveType === 'LOCAL'
     ? user?.employee?.localLeaveBalance
     : user?.employee?.sickLeaveBalance;
+
+  const hasConflict = holidayConflicts.length > 0;
+  const exceedsBalance = leaveBalance !== undefined && calculateDays() > leaveBalance;
 
   return (
     <Layout>
@@ -138,11 +162,22 @@ const LeaveApply: React.FC = () => {
               </div>
             </div>
 
-            {calculateDays() > 0 && (
+            {hasConflict && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-700 font-medium">Public holiday conflict</p>
+                <ul className="mt-1 text-sm text-red-600 list-disc list-inside">
+                  {holidayConflicts.map(h => (
+                    <li key={h.date}>{h.name} ({h.date.split('T')[0]})</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {calculateDays() > 0 && !hasConflict && (
               <div className="p-3 bg-blue-50 rounded-md">
                 <p className="text-sm text-blue-700">
                   Total Days: <strong>{calculateDays()}</strong>
-                  {leaveBalance !== undefined && calculateDays() > leaveBalance && (
+                  {exceedsBalance && (
                     <span className="text-red-600 ml-2">
                       (Exceeds available balance of {leaveBalance} days)
                     </span>
@@ -177,7 +212,7 @@ const LeaveApply: React.FC = () => {
               </button>
               <button
                 type="submit"
-                disabled={loading || (leaveBalance !== undefined && calculateDays() > leaveBalance)}
+                disabled={loading || exceedsBalance || hasConflict}
                 className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Submitting...' : 'Submit Application'}

@@ -201,9 +201,12 @@ export const applyLeave = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // Send email notification to admins/employers who have notifications enabled
+    // Notify all HR roles who have email notifications enabled
     const managers = await prisma.user.findMany({
-      where: { role: { in: ['ADMIN', 'EMPLOYER'] }, emailNotifications: true },
+      where: {
+        role: { in: ['ADMIN', 'EMPLOYER', 'DIRECTOR', 'TREASURER', 'SECRETARY'] },
+        emailNotifications: true,
+      },
       select: { email: true },
     });
     if (managers.length > 0) {
@@ -215,8 +218,19 @@ export const applyLeave = async (req: AuthRequest, res: Response) => {
         endDate: end.toLocaleDateString(),
         totalDays,
         reason,
-      }).catch((err: any) => console.error('[Email] Notification failed:', err?.message || err));
+      }).catch((err: any) => console.error('[Email] Manager notification failed:', err?.message || err));
     }
+
+    // Send confirmation to the employee
+    emailService.sendLeaveAppliedConfirmation({
+      to: employee.email,
+      employeeName: `${employee.firstName} ${employee.lastName}`,
+      leaveType,
+      startDate: start.toLocaleDateString(),
+      endDate: end.toLocaleDateString(),
+      totalDays,
+      reason,
+    }).catch((err: any) => console.error('[Email] Employee confirmation failed:', err?.message || err));
 
     return sendSuccess(res, leave, 'Leave application submitted successfully', 201);
   } catch (error: any) {
@@ -358,18 +372,15 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // Notify employee
-    const empUser = await prisma.user.findUnique({ where: { id: leave.employee.userId } });
-    if (empUser?.emailNotifications) {
-      emailService.sendLeaveStatusNotification({
-        to: leave.employee.email,
-        employeeName: `${leave.employee.firstName} ${leave.employee.lastName}`,
-        leaveType: leave.leaveType,
-        startDate: leave.startDate.toLocaleDateString(),
-        endDate: leave.endDate.toLocaleDateString(),
-        status: 'APPROVED',
-      }).catch((err: any) => console.error('[Email] Notification failed:', err?.message || err));
-    }
+    // Notify employee of approval
+    emailService.sendLeaveStatusNotification({
+      to: leave.employee.email,
+      employeeName: `${leave.employee.firstName} ${leave.employee.lastName}`,
+      leaveType: leave.leaveType,
+      startDate: leave.startDate.toLocaleDateString(),
+      endDate: leave.endDate.toLocaleDateString(),
+      status: 'APPROVED',
+    }).catch((err: any) => console.error('[Email] Approval notification failed:', err?.message || err));
 
     return sendSuccess(res, updatedLeave, 'Leave approved successfully');
   } catch (error: any) {
@@ -426,20 +437,17 @@ export const rejectLeave = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // Notify employee
+    // Notify employee of rejection
     if (leave.employee) {
-      const empUser = await prisma.user.findUnique({ where: { id: leave.employee.userId } });
-      if (empUser?.emailNotifications) {
-        emailService.sendLeaveStatusNotification({
-          to: leave.employee.email,
-          employeeName: `${leave.employee.firstName} ${leave.employee.lastName}`,
-          leaveType: leave.leaveType,
-          startDate: leave.startDate.toLocaleDateString(),
-          endDate: leave.endDate.toLocaleDateString(),
-          status: 'REJECTED',
-          rejectionReason,
-        }).catch((err: any) => console.error('[Email] Notification failed:', err?.message || err));
-      }
+      emailService.sendLeaveStatusNotification({
+        to: leave.employee.email,
+        employeeName: `${leave.employee.firstName} ${leave.employee.lastName}`,
+        leaveType: leave.leaveType,
+        startDate: leave.startDate.toLocaleDateString(),
+        endDate: leave.endDate.toLocaleDateString(),
+        status: 'REJECTED',
+        rejectionReason,
+      }).catch((err: any) => console.error('[Email] Rejection notification failed:', err?.message || err));
     }
 
     return sendSuccess(res, updatedLeave, 'Leave rejected successfully');

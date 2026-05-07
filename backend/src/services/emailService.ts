@@ -100,6 +100,48 @@ class EmailService {
 
     if (error) console.error('[EmailService] Send failed:', error);
   }
+  async sendLeaveAppliedConfirmation(opts: {
+    to: string;
+    employeeName: string;
+    leaveType: string;
+    startDate: string;
+    endDate: string;
+    totalDays: number;
+    reason: string;
+  }): Promise<void> {
+    const client = this.getClient();
+    if (!client) return;
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+        <div style="background:#2563eb;padding:20px;border-radius:8px 8px 0 0;text-align:center;">
+          <h2 style="color:white;margin:0;">Leave Request Submitted</h2>
+        </div>
+        <div style="background:#f9f9f9;padding:24px;border:1px solid #eee;border-radius:0 0 8px 8px;">
+          <p style="font-size:16px;color:#333;">Dear ${opts.employeeName},</p>
+          <p style="color:#333;">Your leave request has been submitted and is awaiting approval.</p>
+          <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+            <tr><td style="padding:8px;color:#666;font-weight:bold;width:140px;">Leave Type</td><td style="padding:8px;color:#333;">${opts.leaveType === 'LOCAL' ? 'Annual Leave' : 'Sick Leave'}</td></tr>
+            <tr style="background:#fff;"><td style="padding:8px;color:#666;font-weight:bold;">From</td><td style="padding:8px;color:#333;">${opts.startDate}</td></tr>
+            <tr><td style="padding:8px;color:#666;font-weight:bold;">To</td><td style="padding:8px;color:#333;">${opts.endDate}</td></tr>
+            <tr style="background:#fff;"><td style="padding:8px;color:#666;font-weight:bold;">Days</td><td style="padding:8px;color:#333;">${opts.totalDays}</td></tr>
+            <tr><td style="padding:8px;color:#666;font-weight:bold;">Reason</td><td style="padding:8px;color:#333;">${opts.reason}</td></tr>
+          </table>
+          <p style="color:#666;font-size:13px;">You will be notified once your request has been reviewed.</p>
+        </div>
+      </div>
+    `;
+
+    const { error } = await client.emails.send({
+      from: this.from,
+      to: opts.to,
+      subject: `Leave Request Submitted — ${opts.leaveType === 'LOCAL' ? 'Annual' : 'Sick'} Leave (${opts.startDate} – ${opts.endDate})`,
+      html,
+    });
+
+    if (error) console.error('[EmailService] Send failed:', error);
+  }
+
   async sendPayrollRejectionNotification(opts: {
     to: string[];
     employeeName: string;

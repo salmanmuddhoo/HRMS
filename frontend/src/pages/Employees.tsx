@@ -155,7 +155,7 @@ const Employees: React.FC = () => {
                 Set Compensation
               </button>
             )}
-            {isAdmin && (
+            {(isAdmin || user?.role === 'TREASURER' || user?.role === 'SECRETARY') && (
               <Link
                 to="/employees/add"
                 className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 text-sm font-medium"

@@ -21,6 +21,7 @@ export interface Employee {
   otherAllowances: number;
   localLeaveBalance: number;
   sickLeaveBalance: number;
+  sickLeaveBank: number;
   createdAt: string;
   updatedAt: string;
 }

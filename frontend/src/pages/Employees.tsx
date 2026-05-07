@@ -233,7 +233,7 @@ const Employees: React.FC = () => {
                       <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-600">
                         <div>Annual: {emp.localLeaveBalance}d</div>
                         <div>Sick: {emp.sickLeaveBalance}d</div>
-                        {(emp.sickLeaveBank ?? 0) > 0 && (
+                        {['ADMIN', 'TREASURER', 'SECRETARY', 'DIRECTOR'].includes(user?.role ?? '') && (emp.sickLeaveBank ?? 0) > 0 && (
                           <div className="text-blue-600">Bank: {emp.sickLeaveBank}d</div>
                         )}
                       </td>

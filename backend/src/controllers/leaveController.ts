@@ -221,17 +221,6 @@ export const applyLeave = async (req: AuthRequest, res: Response) => {
       }).catch((err: any) => console.error('[Email] Manager notification failed:', err?.message || err));
     }
 
-    // Send confirmation to the employee
-    emailService.sendLeaveAppliedConfirmation({
-      to: employee.email,
-      employeeName: `${employee.firstName} ${employee.lastName}`,
-      leaveType,
-      startDate: start.toLocaleDateString(),
-      endDate: end.toLocaleDateString(),
-      totalDays,
-      reason,
-    }).catch((err: any) => console.error('[Email] Employee confirmation failed:', err?.message || err));
-
     return sendSuccess(res, leave, 'Leave application submitted successfully', 201);
   } catch (error: any) {
     console.error('Apply leave error:', error);

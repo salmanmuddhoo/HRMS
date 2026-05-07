@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import api from '../services/api';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
@@ -52,8 +52,7 @@ const Attendance: React.FC = () => {
     return new Date(today.setDate(diff));
   });
 
-  // Get week dates
-  const getWeekDates = useCallback(() => {
+  const weekDates = useMemo(() => {
     const dates: Date[] = [];
     for (let i = 0; i < 7; i++) {
       const date = new Date(currentWeekStart);
@@ -62,8 +61,6 @@ const Attendance: React.FC = () => {
     }
     return dates;
   }, [currentWeekStart]);
-
-  const weekDates = getWeekDates();
 
   const formatDateKey = (date: Date) => {
     return date.toISOString().split('T')[0];
@@ -120,7 +117,9 @@ const Attendance: React.FC = () => {
     try {
       setLoading(true);
       const startDate = formatDateKey(currentWeekStart);
-      const endDate = formatDateKey(weekDates[6]);
+      const weekEnd = new Date(currentWeekStart);
+      weekEnd.setDate(currentWeekStart.getDate() + 6);
+      const endDate = formatDateKey(weekEnd);
 
       const response = await api.getAttendance({ startDate, endDate });
       if ((response as any).success) {
@@ -142,7 +141,7 @@ const Attendance: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentWeekStart, weekDates]);
+  }, [currentWeekStart]);
 
   const fetchHolidays = useCallback(async () => {
     try {
@@ -176,7 +175,7 @@ const Attendance: React.FC = () => {
     const dateKey = formatDateKey(date);
     const record = attendanceMap[employeeId]?.[dateKey];
     const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
-    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+    const isWeekend = date.getDay() === 0;
     const holiday = isHoliday(date);
 
     const annualLeaveColor = '#bfdbfe';
@@ -422,7 +421,7 @@ const Attendance: React.FC = () => {
                     </th>
                     {weekDates.map((date) => {
                       const isToday = formatDateKey(new Date()) === formatDateKey(date);
-                      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                      const isWeekend = date.getDay() === 0;
                       const holiday = isHoliday(date);
                       return (
                         <th

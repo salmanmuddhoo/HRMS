@@ -486,26 +486,26 @@ const Payroll: React.FC = () => {
 
         {/* Summary Cards */}
         {payrolls.length > 0 && (
-          <div className="mb-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div className="bg-white p-4 rounded-lg shadow">
-              <div className="text-sm text-gray-500">Employees</div>
-              <div className="text-2xl font-bold text-gray-900">{payrolls.length}</div>
+          <div className="mb-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="bg-white p-3 rounded-lg shadow">
+              <div className="text-xs text-gray-500">Employees</div>
+              <div className="text-xl font-bold text-gray-900">{payrolls.length}</div>
             </div>
-            <div className="bg-white p-4 rounded-lg shadow">
-              <div className="text-sm text-gray-500">Total Gross</div>
-              <div className="text-xl font-bold text-gray-900">{formatCurrency(totalGross)}</div>
+            <div className="bg-white p-3 rounded-lg shadow min-w-0">
+              <div className="text-xs text-gray-500">Total Gross</div>
+              <div className="text-base font-bold text-gray-900 truncate">{formatCurrency(totalGross)}</div>
             </div>
-            <div className="bg-white p-4 rounded-lg shadow">
-              <div className="text-sm text-gray-500">Total Deductions</div>
-              <div className="text-xl font-bold text-red-600">{formatCurrency(totalDeductions)}</div>
+            <div className="bg-white p-3 rounded-lg shadow min-w-0">
+              <div className="text-xs text-gray-500">Total Deductions</div>
+              <div className="text-base font-bold text-red-600 truncate">{formatCurrency(totalDeductions)}</div>
             </div>
-            <div className="bg-white p-4 rounded-lg shadow">
-              <div className="text-sm text-gray-500">Total Net</div>
-              <div className="text-xl font-bold text-green-600">{formatCurrency(totalNet)}</div>
+            <div className="bg-white p-3 rounded-lg shadow min-w-0">
+              <div className="text-xs text-gray-500">Total Net</div>
+              <div className="text-base font-bold text-green-600 truncate">{formatCurrency(totalNet)}</div>
             </div>
-            <div className="bg-white p-4 rounded-lg shadow">
-              <div className="text-sm text-gray-500">Status</div>
-              <div className="flex gap-2 mt-1 flex-wrap">
+            <div className="bg-white p-3 rounded-lg shadow">
+              <div className="text-xs text-gray-500">Status</div>
+              <div className="flex gap-1 mt-1 flex-wrap">
                 {draftCount > 0 && <span className={getStatusBadge('DRAFT')}>{draftCount} Draft</span>}
                 {approvedCount > 0 && <span className={getStatusBadge('APPROVED')}>{approvedCount} Approved</span>}
                 {rejectedCount > 0 && <span className={getStatusBadge('REJECTED')}>{rejectedCount} Rejected</span>}
@@ -513,8 +513,8 @@ const Payroll: React.FC = () => {
               </div>
             </div>
             {canProcessPayroll && (
-              <div className="bg-orange-50 border border-orange-200 p-4 rounded-lg shadow col-span-2 md:col-span-1">
-                <div className="text-sm text-orange-700 font-medium mb-1">Employer Contributions</div>
+              <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg shadow col-span-2 sm:col-span-1">
+                <div className="text-xs text-orange-700 font-medium mb-1">Employer Contributions</div>
                 <div className="text-xs text-orange-600 flex justify-between"><span>CSG:</span><span className="font-semibold">{formatCurrency(totalEmployerCSG)}</span></div>
                 <div className="text-xs text-orange-600 flex justify-between"><span>NSF:</span><span className="font-semibold">{formatCurrency(totalEmployerNSF)}</span></div>
                 <div className="text-xs text-orange-600 flex justify-between"><span>Training Levy:</span><span className="font-semibold">{formatCurrency(totalTrainingLevy)}</span></div>
@@ -608,7 +608,7 @@ const Payroll: React.FC = () => {
                       <td className="px-4 py-3 text-center">
                         <span className={getStatusBadge(payroll.status)}>{payroll.status}</span>
                         {payroll.status === 'REJECTED' && payroll.rejectionReason && (
-                          <p className="text-xs text-red-600 mt-1 max-w-[140px] mx-auto" title={payroll.rejectionReason}>
+                          <p className="text-xs text-red-600 mt-1 max-w-xs mx-auto" title={payroll.rejectionReason}>
                             {payroll.rejectionReason.length > 60 ? payroll.rejectionReason.slice(0, 60) + '…' : payroll.rejectionReason}
                           </p>
                         )}
@@ -897,7 +897,7 @@ const Payroll: React.FC = () => {
               <form onSubmit={handleSaveEdit}>
 
                 {/* Base amounts */}
-                <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Base Salary</label>
                     <input type="number" step="0.01" value={editData.baseSalary}
@@ -984,13 +984,13 @@ const Payroll: React.FC = () => {
 
                   <div className="space-y-2">
                     {adjustments.map((adj, idx) => (
-                      <div key={idx} className="flex gap-2 items-center">
+                      <div key={idx} className="flex flex-wrap gap-2 items-center">
                         <input
                           type="text"
                           placeholder="Label (e.g. NPF)"
                           value={adj.label}
                           onChange={(e) => updateAdjustmentRow(idx, 'label', e.target.value)}
-                          className="flex-1 rounded-md border-gray-300 border p-2 text-sm focus:border-primary-500 focus:ring-primary-500"
+                          className="flex-1 min-w-[120px] rounded-md border-gray-300 border p-2 text-sm focus:border-primary-500 focus:ring-primary-500"
                         />
                         <select
                           value={adj.type}
@@ -1007,7 +1007,7 @@ const Payroll: React.FC = () => {
                           placeholder="Amount"
                           value={adj.amount}
                           onChange={(e) => updateAdjustmentRow(idx, 'amount', e.target.value)}
-                          className="w-28 rounded-md border-gray-300 border p-2 text-sm focus:border-primary-500 focus:ring-primary-500"
+                          className="w-24 rounded-md border-gray-300 border p-2 text-sm focus:border-primary-500 focus:ring-primary-500"
                         />
                         <button type="button" onClick={() => removeAdjustmentRow(idx)}
                           className="text-red-500 hover:text-red-700 text-lg font-bold px-1"

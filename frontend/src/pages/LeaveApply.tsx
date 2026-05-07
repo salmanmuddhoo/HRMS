@@ -22,13 +22,19 @@ const LeaveApply: React.FC = () => {
   };
 
   const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newStart = e.target.value;
+    const today = new Date().toISOString().split('T')[0];
+    const newStart = e.target.value < today ? today : e.target.value;
     setFormData(prev => ({
       ...prev,
       startDate: newStart,
-      // Reset end date to start date if it's now before the new start date
       endDate: prev.endDate && prev.endDate >= newStart ? prev.endDate : newStart,
     }));
+  };
+
+  const handleEndDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const minDate = formData.startDate || new Date().toISOString().split('T')[0];
+    const newEnd = e.target.value < minDate ? minDate : e.target.value;
+    setFormData(prev => ({ ...prev, endDate: newEnd }));
   };
 
   const calculateDays = () => {
@@ -124,7 +130,7 @@ const LeaveApply: React.FC = () => {
                   id="endDate"
                   name="endDate"
                   value={formData.endDate}
-                  onChange={handleChange}
+                  onChange={handleEndDateChange}
                   required
                   min={formData.startDate || new Date().toISOString().split('T')[0]}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm border p-2"

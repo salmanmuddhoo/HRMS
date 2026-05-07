@@ -17,6 +17,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = user?.role === 'ADMIN';
+  const isTreasurer = user?.role === 'TREASURER';
 
   const handleLogout = () => {
     logout();
@@ -32,7 +33,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Payslips', href: '/payslips', forAll: true },
     { name: 'Holidays', href: '/holidays', forAdmin: true },
     { name: 'Reports', href: '/reports', forStaff: true },
-    { name: 'Payroll Wiki', href: '/payroll-wiki', forAdmin: true },
+    { name: 'Payroll Wiki', href: '/payroll-wiki', forAdmin: true, forTreasurer: true },
     { name: 'Settings', href: '/settings', forAdmin: true },
   ];
 
@@ -40,6 +41,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if ((item as any).forAll) return true;
     if ((item as any).forStaff && isEmployer) return true;
     if ((item as any).forAdmin && isAdmin) return true;
+    if ((item as any).forTreasurer && isTreasurer) return true;
     return false;
   });
 

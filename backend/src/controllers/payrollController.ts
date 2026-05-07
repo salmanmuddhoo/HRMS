@@ -189,9 +189,13 @@ export const processMonthlyPayroll = async (req: AuthRequest, res: Response) => 
         },
       });
 
-      const presentDays = attendance.filter((a) => a.isPresent).length;
-      const leaveDays = attendance.filter((a) => a.isLeave).length;
+      const leaveDays = attendance.reduce((sum, a) => {
+        if (!a.isLeave) return sum;
+        if (a.isHalfDay && !a.secondHalfLeaveType) return sum + 0.5;
+        return sum + 1;
+      }, 0);
       const absenceDays = attendance.filter((a) => a.isAbsence).length;
+      const presentDays = Math.max(0, workingDays - leaveDays - absenceDays);
 
       // Calculate travelling allowance deduction (per day of absence)
       const dailyTravellingAllowance = Number(employee.travellingAllowance) / workingDays;
@@ -539,9 +543,13 @@ export const reprocessPayroll = async (req: AuthRequest, res: Response) => {
       where: { employeeId: payroll.employeeId, date: { gte: cycleStart, lte: cycleEnd } },
     });
 
-    const presentDays = attendance.filter(a => a.isPresent).length;
-    const leaveDays   = attendance.filter(a => a.isLeave).length;
+    const leaveDays = attendance.reduce((sum, a) => {
+      if (!a.isLeave) return sum;
+      if (a.isHalfDay && !a.secondHalfLeaveType) return sum + 0.5;
+      return sum + 1;
+    }, 0);
     const absenceDays = attendance.filter(a => a.isAbsence).length;
+    const presentDays = Math.max(0, workingDays - leaveDays - absenceDays);
 
     const emp = payroll.employee;
     const baseSal = Number(emp.baseSalary);

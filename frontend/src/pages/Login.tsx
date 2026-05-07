@@ -53,36 +53,6 @@ const Login: React.FC = () => {
         <rect width="100%" height="100%" fill="url(#starPattern)" />
       </svg>
 
-      {/* Silhouette: two women in hijab from behind, holding hands */}
-      <svg
-        className="absolute bottom-0 left-1/2 -translate-x-1/2 pointer-events-none"
-        style={{ opacity: 0.14 }}
-        width="480" height="380" viewBox="0 0 480 380"
-        xmlns="http://www.w3.org/2000/svg"
-        fill="white"
-        aria-hidden="true"
-      >
-        {/* Left woman */}
-        <ellipse cx="135" cy="52" rx="22" ry="25" />
-        {/* Hijab drape */}
-        <path d="M113,58 C100,76 94,106 92,138 C110,130 122,126 135,124 C148,126 160,130 178,138 C176,106 170,76 157,58 Z" />
-        {/* Abaya */}
-        <path d="M92,138 C86,166 80,202 75,244 C71,278 70,316 70,380 L106,380 C106,350 108,318 110,294 C114,318 116,350 116,380 L156,380 C156,350 154,316 156,280 C160,240 174,166 178,138 Z" />
-        {/* Right arm reaching inward toward center */}
-        <path d="M174,162 C186,175 198,186 216,196 C220,198 224,194 220,189 C209,180 196,167 178,152 Z" />
-
-        {/* Right woman — mirror of left around x=240 */}
-        <g transform="translate(480,0) scale(-1,1)">
-          <ellipse cx="135" cy="52" rx="22" ry="25" />
-          <path d="M113,58 C100,76 94,106 92,138 C110,130 122,126 135,124 C148,126 160,130 178,138 C176,106 170,76 157,58 Z" />
-          <path d="M92,138 C86,166 80,202 75,244 C71,278 70,316 70,380 L106,380 C106,350 108,318 110,294 C114,318 116,350 116,380 L156,380 C156,350 154,316 156,280 C160,240 174,166 178,138 Z" />
-          <path d="M174,162 C186,175 198,186 216,196 C220,198 224,194 220,189 C209,180 196,167 178,152 Z" />
-        </g>
-
-        {/* Joined hands */}
-        <ellipse cx="240" cy="193" rx="22" ry="12" opacity="0.75" />
-      </svg>
-
       {/* Page content */}
       <div className="relative z-10 w-full max-w-sm">
 

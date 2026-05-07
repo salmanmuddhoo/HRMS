@@ -7,11 +7,21 @@ cd backend
 npm install
 npx prisma generate
 
-# Session-mode pooler: same host as DATABASE_URL but port 5432 (not 6543).
+# Session-mode pooler: port 5432 instead of transaction-mode 6543.
 # Supports DDL and prepared statements; reachable from Vercel build servers.
-# DIRECT_URL override still respected if explicitly set correctly.
 MIGRATE_URL="${DIRECT_URL:-${DATABASE_URL//:6543\//:5432\/}}"
-(DATABASE_URL="$MIGRATE_URL" npx prisma migrate resolve --rolled-back 20260422000000_float_to_decimal || true)
+
+# Baseline: mark every migration as applied on databases that have a schema
+# but no _prisma_migrations table (e.g. set up via prisma db push).
+# On databases that already track migrations, each --applied call errors and
+# the || true keeps the loop going without aborting.
+for dir in prisma/migrations/*/; do
+  name=$(basename "$dir")
+  [[ "$name" == *.toml ]] && continue
+  DATABASE_URL="$MIGRATE_URL" npx prisma migrate resolve --applied "$name" 2>/dev/null || true
+done
+
+# Deploy any migrations not yet applied (no-op when all are already tracked).
 DATABASE_URL="$MIGRATE_URL" npx prisma migrate deploy
 
 npm run seed

@@ -22,7 +22,7 @@ if [ $DEPLOY_EXIT -ne 0 ]; then
     # then deploy everything newer so it actually runs.
     #
     # Update BASELINE_CUTOFF whenever a new "already pushed" migration exists.
-    BASELINE_CUTOFF="20260506000002_employee_transfers"
+    BASELINE_CUTOFF="20260507000001_sick_leave_bank"
 
     echo "P3005 detected — baselining migrations up to $BASELINE_CUTOFF ..."
     for dir in prisma/migrations/*/; do

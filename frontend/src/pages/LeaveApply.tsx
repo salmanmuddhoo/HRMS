@@ -21,6 +21,16 @@ const LeaveApply: React.FC = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newStart = e.target.value;
+    setFormData(prev => ({
+      ...prev,
+      startDate: newStart,
+      // Reset end date to start date if it's now before the new start date
+      endDate: prev.endDate && prev.endDate >= newStart ? prev.endDate : newStart,
+    }));
+  };
+
   const calculateDays = () => {
     if (formData.startDate && formData.endDate) {
       const start = new Date(formData.startDate);
@@ -98,7 +108,7 @@ const LeaveApply: React.FC = () => {
                   id="startDate"
                   name="startDate"
                   value={formData.startDate}
-                  onChange={handleChange}
+                  onChange={handleStartDateChange}
                   required
                   min={new Date().toISOString().split('T')[0]}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm border p-2"

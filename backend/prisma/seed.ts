@@ -93,6 +93,24 @@ async function main() {
     create: { key: 'DEFAULT_SICK_LEAVE', value: '10', description: 'Default annual sick leave days' },
   });
 
+  // Financial year start (day and month)
+  await prisma.systemConfig.upsert({
+    where: { key: 'FINANCIAL_YEAR_START_MONTH' },
+    update: {},
+    create: { key: 'FINANCIAL_YEAR_START_MONTH', value: '1', description: 'Month the financial year starts (1 = January)' },
+  });
+  await prisma.systemConfig.upsert({
+    where: { key: 'FINANCIAL_YEAR_START_DAY' },
+    update: {},
+    create: { key: 'FINANCIAL_YEAR_START_DAY', value: '1', description: 'Day of month the financial year starts' },
+  });
+  // Track when leave balances were last reset for the new financial year
+  await prisma.systemConfig.upsert({
+    where: { key: 'LAST_LEAVE_YEAR_RESET' },
+    update: {},
+    create: { key: 'LAST_LEAVE_YEAR_RESET', value: '', description: 'ISO date of last leave year reset' },
+  });
+
   console.log('Database seeding completed.');
   console.log(`\nAdmin login → ${adminEmail} / ${adminPassword}`);
 }

@@ -95,6 +95,10 @@ const Profile: React.FC = () => {
                 <p className="text-gray-500">Sick Leave Balance</p>
                 <p className="font-medium text-gray-900">{user.employee.sickLeaveBalance} days</p>
               </div>
+              <div>
+                <p className="text-gray-500">Sick Leave Bank</p>
+                <p className="font-medium text-gray-900">{user.employee.sickLeaveBank ?? 0} days</p>
+              </div>
             </div>
           )}
         </div>

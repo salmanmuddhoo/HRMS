@@ -18,11 +18,11 @@ const PayrollWiki: React.FC = () => {
         <div className="space-y-2 text-sm text-gray-700">
           <p>The payroll cycle follows these steps:</p>
           <ol className="list-decimal list-inside space-y-1 ml-2">
-            <li><span className="font-medium">Treasurer / Admin</span> — processes payroll for the selected month. All active employee payrolls are created as <span className="font-semibold text-yellow-700">DRAFT</span>.</li>
-            <li><span className="font-medium">Treasurer / Admin</span> — may edit individual payroll records (adjustments, remarks). Editing an <span className="font-semibold text-green-700">APPROVED</span> payroll resets it back to <span className="font-semibold text-yellow-700">DRAFT</span>.</li>
-            <li><span className="font-medium">Secretary / Admin</span> — reviews each payroll and either <span className="font-semibold text-green-700">APPROVES</span> or <span className="font-semibold text-red-600">REJECTS</span> it (with a written reason).</li>
+            <li><span className="font-medium">Treasurer</span> — processes payroll for the selected month. All active employee payrolls are created as <span className="font-semibold text-yellow-700">DRAFT</span>.</li>
+            <li><span className="font-medium">Treasurer</span> — may edit individual payroll records (adjustments, remarks). Editing an <span className="font-semibold text-green-700">APPROVED</span> payroll resets it back to <span className="font-semibold text-yellow-700">DRAFT</span>.</li>
+            <li><span className="font-medium">Secretary</span> — reviews each payroll and either <span className="font-semibold text-green-700">APPROVES</span> or <span className="font-semibold text-red-600">REJECTS</span> it (with a written reason).</li>
             <li>On rejection, the Treasurer is notified by email and must reprocess or correct the payroll, which resets it to <span className="font-semibold text-yellow-700">DRAFT</span>.</li>
-            <li><span className="font-medium">Treasurer / Admin</span> — locks all approved payrolls. A <span className="font-semibold text-gray-700">LOCKED</span> payroll cannot be edited.</li>
+            <li><span className="font-medium">Treasurer</span> — locks all approved payrolls. A <span className="font-semibold text-gray-700">LOCKED</span> payroll cannot be edited.</li>
           </ol>
         </div>
       ),
@@ -266,7 +266,7 @@ const PayrollWiki: React.FC = () => {
       <div className="max-w-4xl mx-auto px-4 py-6">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Payroll Rules &amp; Reference</h1>
-          <p className="text-sm text-gray-500 mt-1">Admin-only documentation for payroll policies and calculation rules.</p>
+          <p className="text-sm text-gray-500 mt-1">Documentation for payroll policies and calculation rules.</p>
         </div>
 
         <div className="space-y-2">

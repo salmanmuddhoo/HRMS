@@ -201,10 +201,10 @@ export const applyLeave = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // Notify all HR roles who have email notifications enabled
+    // Notify approving roles who have email notifications enabled
     const managers = await prisma.user.findMany({
       where: {
-        role: { in: ['ADMIN', 'EMPLOYER', 'DIRECTOR', 'TREASURER', 'SECRETARY'] },
+        role: { in: ['ADMIN', 'TREASURER', 'SECRETARY', 'DIRECTOR'] },
         emailNotifications: true,
       },
       select: { email: true },
@@ -372,15 +372,18 @@ export const approveLeave = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // Notify employee of approval
-    emailService.sendLeaveStatusNotification({
-      to: leave.employee.email,
-      employeeName: `${leave.employee.firstName} ${leave.employee.lastName}`,
-      leaveType: leave.leaveType,
-      startDate: leave.startDate.toLocaleDateString(),
-      endDate: leave.endDate.toLocaleDateString(),
-      status: 'APPROVED',
-    }).catch((err: any) => console.error('[Email] Approval notification failed:', err?.message || err));
+    // Notify employee of approval if they have notifications enabled
+    const empUser = await prisma.user.findUnique({ where: { id: leave.employee.userId } });
+    if (empUser?.emailNotifications) {
+      emailService.sendLeaveStatusNotification({
+        to: leave.employee.email,
+        employeeName: `${leave.employee.firstName} ${leave.employee.lastName}`,
+        leaveType: leave.leaveType,
+        startDate: leave.startDate.toLocaleDateString(),
+        endDate: leave.endDate.toLocaleDateString(),
+        status: 'APPROVED',
+      }).catch((err: any) => console.error('[Email] Approval notification failed:', err?.message || err));
+    }
 
     return sendSuccess(res, updatedLeave, 'Leave approved successfully');
   } catch (error: any) {
@@ -437,17 +440,20 @@ export const rejectLeave = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // Notify employee of rejection
+    // Notify employee of rejection if they have notifications enabled
     if (leave.employee) {
-      emailService.sendLeaveStatusNotification({
-        to: leave.employee.email,
-        employeeName: `${leave.employee.firstName} ${leave.employee.lastName}`,
-        leaveType: leave.leaveType,
-        startDate: leave.startDate.toLocaleDateString(),
-        endDate: leave.endDate.toLocaleDateString(),
-        status: 'REJECTED',
-        rejectionReason,
-      }).catch((err: any) => console.error('[Email] Rejection notification failed:', err?.message || err));
+      const empUser = await prisma.user.findUnique({ where: { id: leave.employee.userId } });
+      if (empUser?.emailNotifications) {
+        emailService.sendLeaveStatusNotification({
+          to: leave.employee.email,
+          employeeName: `${leave.employee.firstName} ${leave.employee.lastName}`,
+          leaveType: leave.leaveType,
+          startDate: leave.startDate.toLocaleDateString(),
+          endDate: leave.endDate.toLocaleDateString(),
+          status: 'REJECTED',
+          rejectionReason,
+        }).catch((err: any) => console.error('[Email] Rejection notification failed:', err?.message || err));
+      }
     }
 
     return sendSuccess(res, updatedLeave, 'Leave rejected successfully');

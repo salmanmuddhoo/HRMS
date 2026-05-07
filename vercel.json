@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "installCommand": "npm install && cd backend && npm install && npx prisma generate && (DATABASE_URL=${DIRECT_URL:-$DATABASE_URL} npx prisma migrate resolve --rolled-back 20260422000000_float_to_decimal || true) && DATABASE_URL=${DIRECT_URL:-$DATABASE_URL} npx prisma migrate deploy && npm run seed && cd ../frontend && npm install --legacy-peer-deps",
+  "installCommand": "bash scripts/vercel-install.sh",
   "buildCommand": "cd frontend && CI=false npm run build",
   "outputDirectory": "frontend/build",
   "functions": {
